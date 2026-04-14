@@ -46,8 +46,16 @@ jobs:
         working-directory: ./etherpad-lite
         run: |
           pnpm run plugins i --path ../../plugin
+      - name: Start mock LLM server
+        working-directory: ./plugin
+        run: |
+          node test/mock-llm-server.js &
+          sleep 2
+          echo "Mock LLM server started"
       - name: Run the backend tests
         working-directory: ./etherpad-lite/src
+        env:
+          MOCK_LLM_PORT: 18089
         run: |
           shopt -s globstar
           res=$(find ./plugin_packages -path "*/static/tests/backend/specs/*" 2>/dev/null | wc -l)

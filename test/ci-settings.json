@@ -1,0 +1,20 @@
+{
+  "ep_ai_core": {
+    "apiBaseUrl": "http://localhost:18089",
+    "apiKey": "mock-key",
+    "model": "mock-model",
+    "provider": "anthropic",
+    "access": {
+      "defaultMode": "full",
+      "pads": {}
+    },
+    "chat": {
+      "trigger": "@ai",
+      "authorName": "AI Assistant",
+      "authorColor": "#7c4dff",
+      "maxContextChars": 50000,
+      "chatHistoryLength": 20,
+      "conversationBufferSize": 10
+    }
+  }
+}
