@@ -98,37 +98,79 @@ exports.handleMessage = async (hookName, context) => {
         return;
       }
 
-      if (isEdit) {
-        messages[0].content += '\n\nThe user is asking you to edit the pad. Respond with a JSON block:\n```json\n{"findText": "text to find", "replaceText": "replacement"}\n```\nor\n```json\n{"appendText": "text to add"}\n```\nAlso include a brief explanation.';
-      }
-
       const llmConfig = {
         apiBaseUrl: aiSettings.apiBaseUrl,
         apiKey: aiSettings.apiKey,
         model: aiSettings.model,
         maxTokens: aiSettings.maxTokens,
+        provider: aiSettings.provider,
       };
       const client = epAiCore.llmClient.create(llmConfig);
-      const response = await client.complete(messages);
 
       if (isEdit && accessMode === 'full') {
-        const jsonMatch = response.content.match(/```json\s*\n([\s\S]*?)\n```/);
-        if (jsonMatch) {
-          try {
-            const editData = JSON.parse(jsonMatch[1]);
-            editData.authorId = await getAiAuthorId();
-            const editResult = await applyEdit(pad, editData);
-            if (!editResult.success) await sendChatReply(padId, `Edit failed: ${editResult.error}`);
-          } catch (e) { logger.warn(`Parse edit JSON failed: ${e.message}`); }
+        // Two-step edit: first get the replacement, then explain to user
+        const currentText = pad.text();
+        const editMessages = [
+          {
+            role: 'system',
+            content: `You are an editor. The user wants you to modify a document. Output ONLY valid JSON with no other text. The JSON must have exactly these fields:
+- "findText": the exact substring from the current document to replace (must match exactly)
+- "replaceText": the new text to replace it with
+
+If adding new content to the end, use:
+- "findText": the last line of current content (exact match)
+- "replaceText": that same last line plus the new content
+
+Current document:
+${currentText}`,
+          },
+          {role: 'user', content: query},
+        ];
+
+        const editResponse = await client.complete(editMessages);
+
+        // Parse JSON — the LLM was told to output ONLY JSON
+        let editData;
+        try {
+          // Strip any markdown code fences if present
+          const cleaned = editResponse.content
+              .replace(/^```(?:json)?\s*\n?/m, '')
+              .replace(/\n?```\s*$/m, '')
+              .trim();
+          editData = JSON.parse(cleaned);
+        } catch (e) {
+          logger.warn(`Failed to parse edit JSON: ${e.message}`);
+          logger.warn(`Raw response: ${editResponse.content.substring(0, 200)}`);
+          await sendChatReply(padId, "I understood you want an edit but couldn't figure out the exact change. Could you be more specific about what to change?");
+          return;
         }
-        const explanation = response.content.replace(/```json[\s\S]*?```/g, '').trim();
-        if (explanation) await sendChatReply(padId, explanation);
+
+        // Apply the edit
+        editData.authorId = await getAiAuthorId();
+        const editResult = await applyEdit(pad, editData);
+
+        if (editResult.success) {
+          // Now get a natural language explanation for the user
+          const explainMessages = [
+            ...messages,
+            {role: 'assistant', content: `I've made the edit. I replaced "${editData.findText}" with "${editData.replaceText}".`},
+            {role: 'user', content: 'Briefly explain what you changed and why (1-2 sentences).'},
+          ];
+          try {
+            const explainResponse = await client.complete(explainMessages);
+            await sendChatReply(padId, explainResponse.content);
+          } catch {
+            await sendChatReply(padId, `Done — I replaced "${editData.findText.substring(0, 50)}..." with the improved version.`);
+          }
+        } else {
+          await sendChatReply(padId, `I tried to edit but: ${editResult.error}`);
+        }
       } else {
+        const response = await client.complete(messages);
         await sendChatReply(padId, response.content);
       }
 
       addToConversation(padId, 'user', query);
-      addToConversation(padId, 'assistant', response.content);
     } catch (err) {
       logger.error(`AI chat error: ${err.message}`);
       let msg = 'Sorry, I encountered an error.';
