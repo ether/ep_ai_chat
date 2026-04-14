@@ -53,7 +53,7 @@ const addToConversation = (padId, role, content) => {
 };
 
 exports.loadSettings = async (hookName, {settings}) => {
-  const aiSettings = settings.ai || {};
+  const aiSettings = settings.ep_ai_core || {};
   const chat = aiSettings.chat || {};
   chatSettings = {...chatSettings, ...chat};
   logger.info(`ep_ai_chat loaded. Trigger: "${chatSettings.trigger}"`);

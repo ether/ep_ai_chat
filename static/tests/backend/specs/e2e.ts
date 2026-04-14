@@ -63,7 +63,7 @@ describe('ep_ai_chat - end-to-end', function () {
 
     // Override AI settings to point to our mock LLM
     const settings = require('ep_etherpad-lite/node/utils/Settings');
-    settings.ai = {
+    settings.ep_ai_core = {
       apiBaseUrl: `http://127.0.0.1:${mockPort}`,
       apiKey: 'test-key',
       model: 'test-model',
@@ -186,8 +186,8 @@ describe('ep_ai_chat - end-to-end', function () {
 
       // Set access control to block secret-* pads
       const settings = require('ep_etherpad-lite/node/utils/Settings');
-      const originalPads = settings.ai.access.pads;
-      settings.ai.access.pads = {'secret-*': 'none'};
+      const originalPads = settings.ep_ai_core.access.pads;
+      settings.ep_ai_core.access.pads = {'secret-*': 'none'};
       await hooks.aCallAll('loadSettings', {settings});
 
       const pad = await padManager.getPad(padId);
@@ -228,7 +228,7 @@ describe('ep_ai_chat - end-to-end', function () {
       }
 
       // Restore settings
-      settings.ai.access.pads = originalPads;
+      settings.ep_ai_core.access.pads = originalPads;
       await hooks.aCallAll('loadSettings', {settings});
     });
   });
