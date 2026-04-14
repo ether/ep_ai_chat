@@ -83,6 +83,9 @@ exports.handleMessage = async (hookName, context) => {
   const chatText = chatMsg?.text || message.data.text;
   if (!chatText) return;
 
+  // Extract selection info if the client attached it
+  const selection = chatMsg?.customMetadata?.selection || null;
+
   const {mentioned, query} = extractMention(chatText, chatSettings.trigger);
   if (!mentioned) return;
 
@@ -126,7 +129,7 @@ exports.handleMessage = async (hookName, context) => {
       // Step 1: Ask the AI to decide — respond with JSON that either
       // contains an edit action or just a chat reply
       const decideMessages = await buildContext(
-          pad, padId, query, conversation, chatSettings, accessMode,
+          pad, padId, query, conversation, chatSettings, accessMode, selection,
       );
 
       // Augment system prompt to request structured decision
