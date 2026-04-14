@@ -21,6 +21,10 @@ jobs:
         with:
           version: 10
           run_install: false
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
       - uses: actions/cache@v4
         name: Setup pnpm cache
         with:
@@ -28,10 +32,6 @@ jobs:
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
       - name: Checkout plugin repository
         uses: actions/checkout@v4
         with:
@@ -46,16 +46,8 @@ jobs:
         working-directory: ./etherpad-lite
         run: |
           pnpm run plugins i --path ../../plugin
-      - name: Start mock LLM server
-        working-directory: ./plugin
-        run: |
-          node test/mock-llm-server.js &
-          sleep 2
-          echo "Mock LLM server started"
       - name: Run the backend tests
         working-directory: ./etherpad-lite/src
-        env:
-          MOCK_LLM_PORT: 18089
         run: |
           shopt -s globstar
           res=$(find ./plugin_packages -path "*/static/tests/backend/specs/*" 2>/dev/null | wc -l)
