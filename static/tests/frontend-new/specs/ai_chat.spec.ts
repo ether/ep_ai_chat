@@ -4,7 +4,7 @@ import {
   sendChatMessage,
   showChat,
   getCurrentChatMessageCount,
-} from "../../../../../../etherpad-lite/src/tests/frontend-new/helper/padHelper";
+} from "../helper/padHelper";
 import http from "http";
 
 // Mock LLM server that responds to Anthropic API requests
@@ -68,23 +68,29 @@ test.describe('ep_ai_chat', () => {
     // Our message should appear
     expect(await getCurrentChatMessageCount(page)).toBeGreaterThanOrEqual(1);
 
-    // Wait for AI response (up to 15 seconds)
+    // Wait for AI response — expecting at least 3 messages:
+    // 1. Our @ai message, 2. "Thinking..." indicator, 3. Actual AI response
     await page.waitForFunction(
-        `document.querySelector('#chattext').querySelectorAll('p').length >= 2`,
+        `document.querySelector('#chattext').querySelectorAll('p').length >= 3`,
         {timeout: 15000},
     );
 
-    // Verify AI responded
+    // Verify AI responded with thinking indicator + actual response
     const messageCount = await getCurrentChatMessageCount(page);
-    expect(messageCount).toBeGreaterThanOrEqual(2);
+    expect(messageCount).toBeGreaterThanOrEqual(3);
 
-    // Get the AI's response text
-    const messages = page.locator('#chattext p');
-    const lastMessage = messages.nth(messageCount - 1);
-    const lastMessageText = await lastMessage.textContent();
-    expect(lastMessageText).toBeTruthy();
-    // AI response should be non-empty and not be our original message
+    // Check that a "Thinking..." message appeared
+    const allMessages = page.locator('#chattext p');
+    const allTexts: string[] = [];
+    for (let i = 0; i < messageCount; i++) {
+      allTexts.push(await allMessages.nth(i).textContent() || '');
+    }
+    expect(allTexts.some((t) => t.includes('Thinking'))).toBeTruthy();
+
+    // The last message should be the actual AI response (not thinking, not our message)
+    const lastMessageText = allTexts[allTexts.length - 1];
     expect(lastMessageText).not.toContain('@ai who wrote this?');
+    expect(lastMessageText).not.toContain('Thinking');
   });
 
   test('AI does not respond to normal chat messages', async ({page}) => {
