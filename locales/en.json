@@ -1,0 +1,12 @@
+{
+  "ep_ai_chat.no_access": "I don't have access to this pad.",
+  "ep_ai_chat.read_only": "I can only read this pad, not edit it. I can answer questions about its content though.",
+  "ep_ai_chat.error_generic": "Sorry, I encountered an error processing your request.",
+  "ep_ai_chat.error_rate_limit": "Sorry, the AI service is rate limited. Please try again in a moment.",
+  "ep_ai_chat.error_auth": "Sorry, the AI service rejected the request. Please check the API key configuration.",
+  "ep_ai_chat.error_send_failed": "Failed to send error message to pad chat",
+  "ep_ai_chat.edit_failed": "I tried to edit the pad but encountered an error",
+  "ep_ai_chat.author_name": "AI Assistant",
+  "ep_ai_chat.system_prompt": "You are an AI assistant collaborating in an Etherpad document. You can see the pad's content and who wrote each part. When users @mention you in chat, respond helpfully.",
+  "ep_ai_chat.read_only_notice": "You have READ-ONLY access to this pad. You cannot edit it. If asked to make changes, explain that you can only read and discuss the content."
+}
