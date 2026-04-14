@@ -83,6 +83,9 @@ exports.handleMessage = async (hookName, context) => {
     return;
   }
 
+  // Send immediate thinking indicator so user knows AI heard them
+  await sendChatReply(padId, '\u2728 Thinking...');
+
   setImmediate(async () => {
     try {
       const pad = await padManager.getPad(padId);
