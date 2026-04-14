@@ -8,6 +8,8 @@ const randomString = require('ep_etherpad-lite/static/js/pad_utils').randomStrin
 const padManager = require('ep_etherpad-lite/node/db/PadManager');
 
 const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
+const Changeset = require('ep_etherpad-lite/static/js/Changeset');
+const {attribsFromString} = require('ep_etherpad-lite/static/js/attributes');
 
 const padEditor = require('../../../../padEditor');
 
@@ -134,6 +136,55 @@ describe('ep_ai_chat - padEditor', function () {
       assert.ok(!updatePadClientsCalled, 'updatePadClients should NOT be called when edit fails');
 
       padMessageHandler.updatePadClients = origUpdatePadClients;
+    });
+
+    it('applies author attributes so replaced text is colored', async function () {
+      const padId = `test-edit-${randomString(10)}`;
+      await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Color me`)
+          .set('Authorization', await generateJWTToken());
+
+      const pad = await padManager.getPad(padId);
+      const authorId = 'a.ai_color_test';
+      await padEditor.applyEdit(pad, {findText: 'Color me', replaceText: 'Colored!', authorId});
+
+      // Check that the pad's atext has author attributes for the new text
+      const updatedPad = await padManager.getPad(padId);
+      const atext = updatedPad.atext;
+      const pool = updatedPad.pool;
+
+      // Walk the attribs and find author attribution
+      let foundAuthor = false;
+      for (const op of Changeset.deserializeOps(atext.attribs)) {
+        for (const [key, value] of attribsFromString(op.attribs, pool)) {
+          if (key === 'author' && value === authorId) {
+            foundAuthor = true;
+          }
+        }
+      }
+      assert.ok(foundAuthor, `Author ${authorId} should be in the atext attributes`);
+    });
+
+    it('applies author attributes for appended text', async function () {
+      const padId = `test-edit-${randomString(10)}`;
+      await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Base`)
+          .set('Authorization', await generateJWTToken());
+
+      const pad = await padManager.getPad(padId);
+      const authorId = 'a.ai_append_test';
+      await padEditor.applyEdit(pad, {appendText: '\nNew content', authorId});
+
+      const updatedPad = await padManager.getPad(padId);
+      const pool = updatedPad.pool;
+
+      // Check that the author is in the pool
+      let foundInPool = false;
+      for (const key in pool.numToAttrib) {
+        const [attrKey, attrVal] = pool.numToAttrib[key];
+        if (attrKey === 'author' && attrVal === authorId) {
+          foundInPool = true;
+        }
+      }
+      assert.ok(foundInPool, `Author ${authorId} should be in the attribute pool`);
     });
   });
 });
