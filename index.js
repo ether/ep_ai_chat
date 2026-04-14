@@ -7,7 +7,7 @@ const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandl
 const {ChatMessage} = require('ep_etherpad-lite/static/js/ChatMessage');
 const epAiCore = require('ep_ai_core/index');
 
-const {extractMention, detectEditIntent} = require('./chatHandler');
+const {extractMention} = require('./chatHandler');
 const {buildContext} = require('./contextBuilder');
 const {applyEdit} = require('./padEditor');
 
@@ -65,7 +65,6 @@ exports.handleMessage = async (hookName, context) => {
   if (!message || !message.data) return;
   if (message.type !== 'COLLABROOM' || message.data.type !== 'CHAT_MESSAGE') return;
 
-  // Chat message text is nested inside message.data.message
   const chatMsg = message.data.message;
   const chatText = chatMsg?.text || message.data.text;
   if (!chatText) return;
@@ -83,20 +82,13 @@ exports.handleMessage = async (hookName, context) => {
     return;
   }
 
-  // Send immediate thinking indicator so user knows AI heard them
   await sendChatReply(padId, '\u2728 Thinking...');
 
   setImmediate(async () => {
     try {
       const pad = await padManager.getPad(padId);
+      const currentText = pad.text();
       const conversation = getConversation(padId);
-      const messages = await buildContext(pad, padId, query, conversation, chatSettings, accessMode);
-
-      const isEdit = detectEditIntent(query);
-      if (isEdit && accessMode === 'readOnly') {
-        await sendChatReply(padId, 'I can only read this pad, not edit it.');
-        return;
-      }
 
       const llmConfig = {
         apiBaseUrl: aiSettings.apiBaseUrl,
@@ -107,70 +99,67 @@ exports.handleMessage = async (hookName, context) => {
       };
       const client = epAiCore.llmClient.create(llmConfig);
 
-      if (isEdit && accessMode === 'full') {
-        // Two-step edit: first get the replacement, then explain to user
-        const currentText = pad.text();
-        const editMessages = [
-          {
-            role: 'system',
-            content: `You are an editor. The user wants you to modify a document. Output ONLY valid JSON with no other text. The JSON must have exactly these fields:
-- "findText": the exact substring from the current document to replace (must match exactly)
-- "replaceText": the new text to replace it with
+      // Step 1: Ask the AI to decide — respond with JSON that either
+      // contains an edit action or just a chat reply
+      const decideMessages = await buildContext(
+          pad, padId, query, conversation, chatSettings, accessMode,
+      );
 
-If adding new content to the end, use:
-- "findText": the last line of current content (exact match)
-- "replaceText": that same last line plus the new content
+      // Augment system prompt to request structured decision
+      const canEdit = accessMode === 'full';
+      const editInstructions = canEdit
+        ? `
 
-Current document:
-${currentText}`,
-          },
-          {role: 'user', content: query},
-        ];
+When the user asks you to change, improve, edit, rewrite, fix, or modify the document in any way, you MUST respond with a JSON block containing your edit. Use this exact format:
 
-        const editResponse = await client.complete(editMessages);
+\`\`\`json
+{"action": "edit", "findText": "exact text from the document to replace", "replaceText": "the improved replacement text", "explanation": "brief explanation of what you changed"}
+\`\`\`
 
-        // Parse JSON — the LLM was told to output ONLY JSON
-        let editData;
+The findText MUST be an exact substring from the current document. Be precise.
+
+If the user is NOT asking for an edit (just asking a question, discussing content, etc.), respond normally with plain text — no JSON block.`
+        : '\n\nYou have READ-ONLY access. You cannot edit the pad. Just answer questions.';
+
+      decideMessages[0].content += editInstructions;
+
+      const response = await client.complete(decideMessages);
+
+      // Step 2: Check if the response contains an edit JSON block
+      const jsonMatch = response.content.match(/```json\s*\n([\s\S]*?)\n```/);
+      let applied = false;
+
+      if (jsonMatch && canEdit) {
         try {
-          // Strip any markdown code fences if present
-          const cleaned = editResponse.content
-              .replace(/^```(?:json)?\s*\n?/m, '')
-              .replace(/\n?```\s*$/m, '')
-              .trim();
-          editData = JSON.parse(cleaned);
+          const editData = JSON.parse(jsonMatch[1]);
+          if (editData.action === 'edit' && editData.findText && editData.replaceText !== undefined) {
+            editData.authorId = await getAiAuthorId();
+            const editResult = await applyEdit(pad, editData);
+            if (editResult.success) {
+              applied = true;
+              const explanation = editData.explanation || 'Edit applied.';
+              await sendChatReply(padId, `\u2705 ${explanation}`);
+            } else {
+              logger.warn(`Edit failed: ${editResult.error}`);
+              // Fall through to send the raw response
+            }
+          }
         } catch (e) {
           logger.warn(`Failed to parse edit JSON: ${e.message}`);
-          logger.warn(`Raw response: ${editResponse.content.substring(0, 200)}`);
-          await sendChatReply(padId, "I understood you want an edit but couldn't figure out the exact change. Could you be more specific about what to change?");
-          return;
+          // Fall through to send the raw response
         }
+      }
 
-        // Apply the edit
-        editData.authorId = await getAiAuthorId();
-        const editResult = await applyEdit(pad, editData);
-
-        if (editResult.success) {
-          // Now get a natural language explanation for the user
-          const explainMessages = [
-            ...messages,
-            {role: 'assistant', content: `I've made the edit. I replaced "${editData.findText}" with "${editData.replaceText}".`},
-            {role: 'user', content: 'Briefly explain what you changed and why (1-2 sentences).'},
-          ];
-          try {
-            const explainResponse = await client.complete(explainMessages);
-            await sendChatReply(padId, explainResponse.content);
-          } catch {
-            await sendChatReply(padId, `Done — I replaced "${editData.findText.substring(0, 50)}..." with the improved version.`);
-          }
-        } else {
-          await sendChatReply(padId, `I tried to edit but: ${editResult.error}`);
-        }
-      } else {
-        const response = await client.complete(messages);
-        await sendChatReply(padId, response.content);
+      if (!applied) {
+        // Send the response as-is (strip any failed JSON blocks)
+        const cleanResponse = response.content
+            .replace(/```json[\s\S]*?```/g, '')
+            .trim();
+        await sendChatReply(padId, cleanResponse || response.content);
       }
 
       addToConversation(padId, 'user', query);
+      addToConversation(padId, 'assistant', response.content);
     } catch (err) {
       logger.error(`AI chat error: ${err.message}`);
       let msg = 'Sorry, I encountered an error.';
