@@ -6,6 +6,7 @@ const padManager = require('ep_etherpad-lite/node/db/PadManager');
 const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
 const {ChatMessage} = require('ep_etherpad-lite/static/js/ChatMessage');
 const epAiCore = require('ep_ai_core/index');
+const {t} = require('ep_ai_core/i18n');
 
 const {extractMention} = require('./chatHandler');
 const {buildContext} = require('./contextBuilder');
@@ -78,7 +79,7 @@ exports.handleMessage = async (hookName, context) => {
   const aiSettings = epAiCore.getSettings();
   const accessMode = epAiCore.accessControl.getAccessMode(padId, aiSettings);
   if (accessMode === 'none') {
-    await sendChatReply(padId, "I don't have access to this pad.");
+    await sendChatReply(padId, t('ep_ai_chat.no_access'));
     return;
   }
 
@@ -162,9 +163,9 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
       addToConversation(padId, 'assistant', response.content);
     } catch (err) {
       logger.error(`AI chat error: ${err.message}`);
-      let msg = 'Sorry, I encountered an error.';
-      if (err.message.includes('429')) msg = 'AI service rate limited. Try again shortly.';
-      else if (err.message.includes('401') || err.message.includes('403')) msg = 'AI service rejected request. Check API key.';
+      let msg = t('ep_ai_chat.error_generic');
+      if (err.message.includes('429')) msg = t('ep_ai_chat.error_rate_limit');
+      else if (err.message.includes('401') || err.message.includes('403')) msg = t('ep_ai_chat.error_auth');
       try { await sendChatReply(padId, msg); } catch { logger.error('Failed to send error to chat'); }
     }
   });
