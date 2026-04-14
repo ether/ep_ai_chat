@@ -1,0 +1,37 @@
+{
+  "name": "ep_ai_chat",
+  "version": "0.0.1",
+  "description": "AI pad participant for Etherpad: responds to @mentions in chat and edits pads",
+  "author": {
+    "name": "John McLear",
+    "email": "john@mclear.co.uk"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "ep",
+    "etherpad",
+    "plugin",
+    "ai",
+    "chat"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-etherpad": "^4.0.4",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ether/ep_ai_chat.git"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://etherpad.org/"
+  }
+}

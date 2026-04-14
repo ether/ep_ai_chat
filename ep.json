@@ -1,0 +1,11 @@
+{
+  "parts": [
+    {
+      "name": "ep_ai_chat",
+      "hooks": {
+        "loadSettings": "ep_ai_chat/index",
+        "handleMessage": "ep_ai_chat/index"
+      }
+    }
+  ]
+}
