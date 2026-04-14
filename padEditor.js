@@ -2,30 +2,63 @@
 
 const Changeset = require('ep_etherpad-lite/static/js/Changeset');
 const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
+const authorManager = require('ep_etherpad-lite/node/db/AuthorManager');
+const socketio = require('ep_etherpad-lite/node/hooks/express').socketio;
 const log4js = require('ep_etherpad-lite/node_modules/log4js');
 const logger = log4js.getLogger('ep_ai_chat:editor');
+
+/**
+ * Broadcast AI author info to all clients on a pad so the AI
+ * appears in the user/author list with name and color.
+ */
+const announceAiAuthor = async (padId, authorId) => {
+  try {
+    const authorInfo = await authorManager.getAuthor(authorId);
+    if (!authorInfo || !socketio) return;
+    socketio.sockets.in(padId).emit('message', {
+      type: 'COLLABROOM',
+      data: {
+        type: 'USER_NEWINFO',
+        userInfo: {
+          colorId: authorInfo.colorId,
+          name: authorInfo.name,
+          userId: authorId,
+        },
+      },
+    });
+  } catch (err) {
+    logger.warn(`Failed to announce AI author: ${err.message}`);
+  }
+};
 
 const applyEdit = async (pad, edit) => {
   const currentText = pad.text();
   const authorId = edit.authorId || '';
 
   try {
+    // Build author attributes so inserted text gets colored
+    const attribs = authorId ? [['author', authorId]] : undefined;
+    const pool = authorId ? pad.pool : undefined;
+
     let changeset;
 
     if (edit.appendText) {
       const insertPos = currentText.length - 1;
-      changeset = Changeset.makeSplice(currentText, insertPos, 0, edit.appendText);
+      changeset = Changeset.makeSplice(currentText, insertPos, 0, edit.appendText, attribs, pool);
     } else if (edit.findText && edit.replaceText !== undefined) {
       const idx = currentText.indexOf(edit.findText);
       if (idx === -1) return {success: false, error: `Text not found: "${edit.findText.substring(0, 100)}"`};
-      changeset = Changeset.makeSplice(currentText, idx, edit.findText.length, edit.replaceText);
+      changeset = Changeset.makeSplice(currentText, idx, edit.findText.length, edit.replaceText, attribs, pool);
     } else {
       return {success: false, error: 'No valid edit operation specified'};
     }
 
     await pad.appendRevision(changeset, authorId);
-    // Broadcast the changeset to all connected clients so they see the update live
     await padMessageHandler.updatePadClients(pad);
+
+    // Announce AI as an author so it appears in the user list
+    if (authorId) await announceAiAuthor(pad.id, authorId);
+
     return {success: true};
   } catch (err) {
     logger.error(`Edit failed: ${err.message}`);
