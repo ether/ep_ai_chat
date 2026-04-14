@@ -65,7 +65,9 @@ exports.handleMessage = async (hookName, context) => {
   if (!message || !message.data) return;
   if (message.type !== 'COLLABROOM' || message.data.type !== 'CHAT_MESSAGE') return;
 
-  const chatText = message.data.text;
+  // Chat message text is nested inside message.data.message
+  const chatMsg = message.data.message;
+  const chatText = chatMsg?.text || message.data.text;
   if (!chatText) return;
 
   const {mentioned, query} = extractMention(chatText, chatSettings.trigger);
