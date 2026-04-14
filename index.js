@@ -15,6 +15,19 @@ const {applyEdit} = require('./padEditor');
 const logger = log4js.getLogger('ep_ai_chat');
 
 const conversations = {};
+
+// Rate limiting: track last request time per pad
+const rateLimits = {};
+const RATE_LIMIT_MS = 5000; // Minimum 5 seconds between @ai requests per pad
+
+const isRateLimited = (padId) => {
+  const now = Date.now();
+  const lastRequest = rateLimits[padId] || 0;
+  if (now - lastRequest < RATE_LIMIT_MS) return true;
+  rateLimits[padId] = now;
+  return false;
+};
+
 let chatSettings = {
   trigger: '@ai',
   authorName: 'AI Assistant',
@@ -76,12 +89,22 @@ exports.handleMessage = async (hookName, context) => {
   const padId = context.sessionInfo?.padId;
   if (!padId) return;
 
+  // Rate limit: prevent API cost abuse
+  if (isRateLimited(padId)) {
+    logger.info(`Rate limited @ai request on pad ${padId}`);
+    return;
+  }
+
   const aiSettings = epAiCore.getSettings();
   const accessMode = epAiCore.accessControl.getAccessMode(padId, aiSettings);
   if (accessMode === 'none') {
     await sendChatReply(padId, t('ep_ai_chat.no_access'));
     return;
   }
+
+  // Audit log
+  const requestAuthor = context.sessionInfo?.authorId || 'unknown';
+  logger.info(`AI request: pad=${padId} author=${requestAuthor} query="${query.substring(0, 100)}"`);
 
   await sendChatReply(padId, '\u2728 Thinking...');
 
@@ -139,6 +162,7 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
             if (editResult.success) {
               applied = true;
               const explanation = editData.explanation || 'Edit applied.';
+              logger.info(`AI edit applied: pad=${padId} find="${editData.findText.substring(0, 50)}" replace="${editData.replaceText.substring(0, 50)}"`);
               await sendChatReply(padId, `\u2705 ${explanation}`);
             } else {
               logger.warn(`Edit failed: ${editResult.error}`);
