@@ -130,12 +130,18 @@ describe('ep_ai_chat - end-to-end', function () {
           `Expected chatHead to increase from ${chatHeadBefore}, got ${updatedPad.chatHead}`,
       );
 
-      // Verify the chat message content
+      // Verify the chat messages — expecting "Thinking..." then actual response
       const messages = await updatedPad.getChatMessages(chatHeadBefore + 1, updatedPad.chatHead);
-      assert.ok(messages.length > 0, 'Should have at least one AI response');
+      assert.ok(messages.length >= 2, `Should have at least 2 messages (thinking + response), got ${messages.length}`);
       assert.ok(
-          messages[0].text.includes('test author'),
-          `AI response should mention test author, got: "${messages[0].text}"`,
+          messages[0].text.includes('Thinking'),
+          `First message should be thinking indicator, got: "${messages[0].text}"`,
+      );
+      // The actual AI response is the last message
+      const aiResponse = messages[messages.length - 1];
+      assert.ok(
+          aiResponse.text.includes('test author'),
+          `AI response should mention test author, got: "${aiResponse.text}"`,
       );
     });
 

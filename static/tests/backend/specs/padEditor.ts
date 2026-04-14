@@ -7,10 +7,17 @@ const {generateJWTToken} = common;
 const randomString = require('ep_etherpad-lite/static/js/pad_utils').randomString;
 const padManager = require('ep_etherpad-lite/node/db/PadManager');
 
+const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
+
 const padEditor = require('../../../../padEditor');
 
 let agent: any;
 const apiVersion = 1;
+
+// Track updatePadClients calls
+let updatePadClientsCalled = false;
+const origUpdatePadClients = padMessageHandler.updatePadClients;
+
 
 describe('ep_ai_chat - padEditor', function () {
   before(async function () {
@@ -67,6 +74,66 @@ describe('ep_ai_chat - padEditor', function () {
 
       const updated = await padManager.getPad(padId);
       assert.ok(updated.text().includes('Second line'));
+    });
+
+    it('calls updatePadClients to broadcast changes to connected clients', async function () {
+      const padId = `test-edit-${randomString(10)}`;
+      await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Broadcast test`)
+          .set('Authorization', await generateJWTToken());
+
+      // Spy on updatePadClients
+      updatePadClientsCalled = false;
+      padMessageHandler.updatePadClients = async (pad: any) => {
+        updatePadClientsCalled = true;
+        // Call original so it doesn't break anything
+        return origUpdatePadClients(pad);
+      };
+
+      const pad = await padManager.getPad(padId);
+      await padEditor.applyEdit(pad, {findText: 'Broadcast', replaceText: 'Live'});
+
+      assert.ok(updatePadClientsCalled, 'updatePadClients should be called after edit');
+
+      // Restore original
+      padMessageHandler.updatePadClients = origUpdatePadClients;
+    });
+
+    it('calls updatePadClients for append edits too', async function () {
+      const padId = `test-edit-${randomString(10)}`;
+      await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Start`)
+          .set('Authorization', await generateJWTToken());
+
+      updatePadClientsCalled = false;
+      padMessageHandler.updatePadClients = async (pad: any) => {
+        updatePadClientsCalled = true;
+        return origUpdatePadClients(pad);
+      };
+
+      const pad = await padManager.getPad(padId);
+      await padEditor.applyEdit(pad, {appendText: '\nAppended'});
+
+      assert.ok(updatePadClientsCalled, 'updatePadClients should be called after append');
+
+      padMessageHandler.updatePadClients = origUpdatePadClients;
+    });
+
+    it('does NOT call updatePadClients when edit fails', async function () {
+      const padId = `test-edit-${randomString(10)}`;
+      await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Hello`)
+          .set('Authorization', await generateJWTToken());
+
+      updatePadClientsCalled = false;
+      padMessageHandler.updatePadClients = async (pad: any) => {
+        updatePadClientsCalled = true;
+        return origUpdatePadClients(pad);
+      };
+
+      const pad = await padManager.getPad(padId);
+      await padEditor.applyEdit(pad, {findText: 'nonexistent', replaceText: 'x'});
+
+      assert.ok(!updatePadClientsCalled, 'updatePadClients should NOT be called when edit fails');
+
+      padMessageHandler.updatePadClients = origUpdatePadClients;
     });
   });
 });
