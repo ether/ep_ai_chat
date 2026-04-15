@@ -15,6 +15,34 @@ const {applyEdit} = require('./padEditor');
 const logger = log4js.getLogger('ep_ai_chat');
 
 const conversations = {};
+const conversationLastAccess = {};
+const MAX_TRACKED_PADS = 1000;
+const CONVERSATION_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// Evict stale conversations periodically
+const evictStaleConversations = () => {
+  const now = Date.now();
+  const padIds = Object.keys(conversationLastAccess);
+  // Evict expired entries
+  for (const padId of padIds) {
+    if (now - conversationLastAccess[padId] > CONVERSATION_TTL_MS) {
+      delete conversations[padId];
+      delete conversationLastAccess[padId];
+    }
+  }
+  // If still over limit, evict oldest
+  const remaining = Object.entries(conversationLastAccess);
+  if (remaining.length > MAX_TRACKED_PADS) {
+    remaining.sort((a, b) => a[1] - b[1]);
+    const toEvict = remaining.length - MAX_TRACKED_PADS;
+    for (let i = 0; i < toEvict; i++) {
+      delete conversations[remaining[i][0]];
+      delete conversationLastAccess[remaining[i][0]];
+    }
+  }
+};
+const evictionTimer = setInterval(evictStaleConversations, 5 * 60 * 1000);
+evictionTimer.unref();
 
 // Rate limiting: track last request time per pad
 const rateLimits = {};
@@ -56,6 +84,7 @@ const sendChatReply = async (padId, text) => {
 
 const getConversation = (padId) => {
   if (!conversations[padId]) conversations[padId] = [];
+  conversationLastAccess[padId] = Date.now();
   return conversations[padId];
 };
 
