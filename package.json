@@ -17,6 +17,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "peerDependencies": {
+    "ep_ai_core": ">=0.0.1"
+  },
   "devDependencies": {
     "eslint": "^8.57.1",
     "eslint-config-etherpad": "^4.0.4",
