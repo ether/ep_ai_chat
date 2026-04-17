@@ -1,4 +1,4 @@
-# ep_ai_chat
+# AI Chat for Etherpad
 
 AI chat participant for Etherpad. When users @mention the AI in pad chat, it
 reads the document, understands who wrote what, and responds. It can also edit
