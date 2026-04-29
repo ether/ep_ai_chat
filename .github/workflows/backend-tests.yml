@@ -1,22 +1,36 @@
 name: Backend Tests
 
+# any branch is useful for testing before a PR is submitted
 on:
   workflow_call:
 
 jobs:
   withplugins:
+    # run on pushes to any branch
+    # run on PRs from external forks
     if: |
       (github.event_name != 'pull_request')
       || (github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id)
     name: with Plugins
     runs-on: ubuntu-latest
     steps:
-      - name: Install etherpad core
-        uses: actions/checkout@v4
+      -
+        name: Install libreoffice
+        uses: awalsh128/cache-apt-pkgs-action@v1.6.0
+        with:
+          packages: libreoffice libreoffice-pdfimport
+          version: 1.0
+      -
+        name: Install etherpad core
+        uses: actions/checkout@v6
         with:
           repository: ether/etherpad-lite
           path: etherpad-lite
-      - uses: pnpm/action-setup@v3
+      - uses: actions/setup-node@v4
+        name: Install Node.js
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         with:
           version: 10
@@ -25,37 +39,31 @@ jobs:
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         name: Setup pnpm cache
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
-      - name: Checkout plugin repository
-        uses: actions/checkout@v4
+      -
+        name: Checkout plugin repository
+        uses: actions/checkout@v6
         with:
           path: plugin
-      - name: Checkout ep_ai_core dependency
-        uses: actions/checkout@v4
-        with:
-          repository: ether/ep_ai_core
-          path: ep_ai_core
       - name: Remove tests
         working-directory: ./etherpad-lite
         run: rm -rf ./src/tests/backend/specs
-      - name: Install Etherpad core dependencies
+      -
+        name: Install Etherpad core dependencies
         working-directory: ./etherpad-lite
         run: bin/installDeps.sh
-      - name: Install ep_ai_core dependency
-        working-directory: ./etherpad-lite
-        run: |
-          pnpm run plugins i --path ../../ep_ai_core
       - name: Install plugin
         working-directory: ./etherpad-lite
         run: |
-          pnpm run plugins i --path ../../plugin
-      - name: Run the backend tests
+          pnpm run plugins i --path  ../../plugin
+      -
+        name: Run the backend tests
         working-directory: ./etherpad-lite/src
         run: |
           shopt -s globstar
