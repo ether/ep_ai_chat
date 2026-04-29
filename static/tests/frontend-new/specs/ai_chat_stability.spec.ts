@@ -6,7 +6,7 @@ import {
   toggleUserList,
   setUserName,
   getCurrentChatMessageCount,
-} from "../helper/padHelper";
+} from "ep_etherpad-lite/tests/frontend-new/helper/padHelper";
 
 test.beforeEach(async ({page, context}) => {
   await context.clearCookies();

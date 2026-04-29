@@ -4,7 +4,7 @@ import {
   sendChatMessage,
   showChat,
   getCurrentChatMessageCount,
-} from "../helper/padHelper";
+} from "ep_etherpad-lite/tests/frontend-new/helper/padHelper";
 import http from "http";
 
 // Mock LLM server that responds to Anthropic API requests
