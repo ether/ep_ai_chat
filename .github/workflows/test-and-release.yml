@@ -11,8 +11,11 @@ jobs:
   backend-tests:
     uses: ./.github/workflows/backend-tests.yml
 
+  frontend-tests:
+    uses: ./.github/workflows/frontend-tests.yml
+
   release:
-    needs: [backend-tests]
+    needs: [backend-tests, frontend-tests]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
@@ -24,7 +27,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
