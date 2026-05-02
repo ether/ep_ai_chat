@@ -6,7 +6,7 @@ const padManager = require('ep_etherpad-lite/node/db/PadManager');
 const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
 const {ChatMessage} = require('ep_etherpad-lite/static/js/ChatMessage');
 const epAiCore = require('ep_ai_core/index');
-const {t} = require('ep_ai_core/i18n');
+const {t} = require('./i18n');
 
 const {extractMention} = require('./chatHandler');
 const {buildContext} = require('./contextBuilder');
