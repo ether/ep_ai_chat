@@ -48,6 +48,11 @@ jobs:
       - name: Install peer dep ep_ai_core from registry
         working-directory: ./etherpad-lite
         run: pnpm run plugins i ep_ai_core
+      # Intentionally NOT installing ep_comments_page here. The frontend
+      # editing specs expect AI requests to apply edits directly to the
+      # pad; with ep_comments_page present, the plugin's "auto" default
+      # routes to suggest mode and the pad text would not change in
+      # response to those tests.
       - name: Install plugin
         working-directory: ./etherpad-lite
         run: |

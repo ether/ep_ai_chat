@@ -21,7 +21,7 @@ const getDocumentText = (messages) => {
       const content = typeof m === 'string' ? m : m.content;
       if (!content) continue;
       const newFmt = content.match(
-          /--- BEGIN DOCUMENT[^-]*---\n([\s\S]*?)\n--- END DOCUMENT ---/);
+          /--- BEGIN DOCUMENT[^\n]*---\n([\s\S]*?)\n--- END DOCUMENT ---/);
       if (newFmt) return newFmt[1].trim();
       const oldFmt = content.match(
           /Current pad content[^:]*:\n\n([\s\S]*?)(\n\nAuthors:|$)/);

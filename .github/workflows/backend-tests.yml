@@ -61,6 +61,9 @@ jobs:
       - name: Install peer dep ep_ai_core from registry
         working-directory: ./etherpad-lite
         run: pnpm run plugins i ep_ai_core
+      - name: Install optional peer dep ep_comments_page from registry
+        working-directory: ./etherpad-lite
+        run: pnpm run plugins i ep_comments_page
       - name: Install plugin
         working-directory: ./etherpad-lite
         run: |
