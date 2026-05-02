@@ -43,6 +43,11 @@ test.describe('ep_ai_chat stability', () => {
     await page.keyboard.type(' More content after name change.');
     await page.waitForTimeout(1000);
 
+    // The plugin rate-limits @ai requests per pad (5s by default; CI shrinks
+    // it via chat.rateLimitMs). Wait long enough that the second @ai is
+    // accepted regardless of which window is in effect.
+    await page.waitForTimeout(6000);
+
     // Send another @ai message — server should still respond
     await sendChatMessage(page, '@ai are you still there?');
 

@@ -46,14 +46,17 @@ const evictStaleConversations = () => {
 const evictionTimer = setInterval(evictStaleConversations, 5 * 60 * 1000);
 evictionTimer.unref();
 
-// Rate limiting: track last request time per pad
+// Rate limiting: track last request time per pad. Window defaults to 5s
+// in production; tests and dev can shrink it via chat.rateLimitMs.
 const rateLimits = {};
-const RATE_LIMIT_MS = 5000; // Minimum 5 seconds between @ai requests per pad
+const DEFAULT_RATE_LIMIT_MS = 5000;
 
 const isRateLimited = (padId) => {
   const now = Date.now();
   const lastRequest = rateLimits[padId] || 0;
-  if (now - lastRequest < RATE_LIMIT_MS) return true;
+  const window = typeof chatSettings.rateLimitMs === 'number'
+      ? chatSettings.rateLimitMs : DEFAULT_RATE_LIMIT_MS;
+  if (now - lastRequest < window) return true;
   rateLimits[padId] = now;
   return false;
 };
