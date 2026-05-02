@@ -76,6 +76,16 @@ const getAiAuthorId = async () => {
   return aiAuthorId;
 };
 
+const getRequesterDisplayName = async (authorId) => {
+  if (!authorId) return 'Anonymous';
+  try {
+    const name = await authorManager.getAuthorName(authorId);
+    return name || 'Anonymous';
+  } catch {
+    return 'Anonymous';
+  }
+};
+
 const sendChatReply = async (padId, text) => {
   const authorId = await getAiAuthorId();
   const msg = new ChatMessage(text, authorId, Date.now());
@@ -155,10 +165,16 @@ exports.handleMessage = async (hookName, context) => {
       };
       const client = epAiCore.llmClient.create(llmConfig);
 
+      const requesterName = await getRequesterDisplayName(requestAuthor);
+      const requester = {
+        authorId: requestAuthor || 'unknown',
+        name: requesterName,
+      };
+
       // Step 1: Ask the AI to decide — respond with JSON that either
       // contains an edit action or just a chat reply
       const decideMessages = await buildContext(
-          pad, padId, query, conversation, chatSettings, accessMode, selection,
+          pad, padId, query, conversation, chatSettings, accessMode, selection, requester,
       );
 
       // Augment system prompt to request structured decision
@@ -190,6 +206,7 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
           const editData = JSON.parse(jsonMatch[1]);
           if (editData.action === 'edit' && editData.findText && editData.replaceText !== undefined) {
             editData.authorId = await getAiAuthorId();
+            editData.requesterAuthorId = requestAuthor;
             const editResult = await applyEdit(pad, editData);
             if (editResult.success) {
               applied = true;
