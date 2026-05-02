@@ -101,7 +101,10 @@ describe('ep_ai_chat - end-to-end provenance', function () {
             data: {
               type: 'CHAT_MESSAGE',
               message: {
-                text: '@ai improve this',
+                // Use "apply:" override so this test exercises the direct
+                // apply path even when ep_comments_page is also installed
+                // (which would otherwise route through suggestEdit).
+                text: '@ai apply: improve this',
                 authorId: requester,
                 time: Date.now(),
               },

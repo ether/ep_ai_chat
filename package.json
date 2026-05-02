@@ -18,7 +18,13 @@
     "node": ">=18.0.0"
   },
   "peerDependencies": {
-    "ep_ai_core": ">=0.0.1"
+    "ep_ai_core": ">=0.0.1",
+    "ep_comments_page": "*"
+  },
+  "peerDependenciesMeta": {
+    "ep_comments_page": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "eslint": "^8.57.1",

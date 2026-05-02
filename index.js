@@ -11,6 +11,8 @@ const {t} = require('ep_ai_core/i18n');
 const {extractMention} = require('./chatHandler');
 const {buildContext} = require('./contextBuilder');
 const {applyEdit} = require('./padEditor');
+const {suggestEdit} = require('./suggestEdit');
+const {resolveSuggestionMode} = require('./suggestionMode');
 
 const logger = log4js.getLogger('ep_ai_chat');
 
@@ -67,6 +69,19 @@ let chatSettings = {
 };
 
 let aiAuthorId = null;
+let commentsModulesCache = {commentManager: null, shared: null, depAvailable: false};
+
+const probeCommentsModule = () => {
+  try {
+    const commentManager = require('ep_comments_page/commentManager');
+    const shared = require('ep_comments_page/static/js/shared');
+    commentsModulesCache = {commentManager, shared, depAvailable: true};
+    logger.info('ep_comments_page detected; suggestion mode available');
+  } catch {
+    commentsModulesCache = {commentManager: null, shared: null, depAvailable: false};
+    logger.info('ep_comments_page not installed; suggestions disabled');
+  }
+};
 
 const getAiAuthorId = async () => {
   if (aiAuthorId) return aiAuthorId;
@@ -111,6 +126,13 @@ exports.loadSettings = async (hookName, {settings}) => {
   chatSettings = {...chatSettings, ...chat};
   logger.info(`ep_ai_chat loaded. Trigger: "${chatSettings.trigger}"`);
   aiAuthorId = null;
+  probeCommentsModule();
+  const wantsSuggest = (chat.suggestionMode || '').toLowerCase() === 'suggest';
+  if (!commentsModulesCache.depAvailable && wantsSuggest) {
+    logger.warn(
+        "ep_ai_chat: suggestionMode is set to 'suggest' but ep_comments_page is " +
+        "not installed; falling back to 'apply'");
+  }
 };
 
 exports.handleMessage = async (hookName, context) => {
@@ -125,7 +147,7 @@ exports.handleMessage = async (hookName, context) => {
   // Extract selection info if the client attached it
   const selection = chatMsg?.customMetadata?.selection || null;
 
-  const {mentioned, query} = extractMention(chatText, chatSettings.trigger);
+  const {mentioned, query, override} = extractMention(chatText, chatSettings.trigger);
   if (!mentioned) return;
 
   const padId = context.sessionInfo?.padId;
@@ -147,6 +169,14 @@ exports.handleMessage = async (hookName, context) => {
   // Audit log
   const requestAuthor = context.sessionInfo?.authorId || 'unknown';
   logger.info(`AI request: pad=${padId} author=${requestAuthor} query="${query.substring(0, 100)}"`);
+
+  const {mode: effectiveMode, fellBackFromSuggest} =
+      resolveSuggestionMode(padId, override, aiSettings, commentsModulesCache.depAvailable);
+  if (override === 'suggest' && fellBackFromSuggest) {
+    await sendChatReply(padId,
+        'Suggestions need ep_comments_page. Falling back to direct edit. ' +
+        'Install the plugin to enable review-before-apply.');
+  }
 
   await sendChatReply(padId, '\u2728 Thinking...');
 
@@ -207,15 +237,48 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
           if (editData.action === 'edit' && editData.findText && editData.replaceText !== undefined) {
             editData.authorId = await getAiAuthorId();
             editData.requesterAuthorId = requestAuthor;
-            const editResult = await applyEdit(pad, editData);
-            if (editResult.success) {
-              applied = true;
-              const explanation = editData.explanation || 'Edit applied.';
-              logger.info(`AI edit applied: pad=${padId} find="${editData.findText.substring(0, 50)}" replace="${editData.replaceText.substring(0, 50)}"`);
-              await sendChatReply(padId, `\u2705 ${explanation}`);
+
+            const useSuggest =
+                effectiveMode === 'suggest' && commentsModulesCache.depAvailable;
+
+            let editResult;
+            if (useSuggest) {
+              const socketio = require('ep_etherpad-lite/node/hooks/express').socketio;
+              editResult = await suggestEdit(pad, editData, {
+                requesterAuthorId: requestAuthor,
+                aiAuthorId: editData.authorId,
+                aiAuthorName: chatSettings.authorName,
+                commentManager: commentsModulesCache.commentManager,
+                shared: commentsModulesCache.shared,
+                io: socketio || null,
+              });
+              if (editResult.success) {
+                applied = true;
+                logger.info(
+                    `AI suggestion created: pad=${padId} commentId=${editResult.commentId}`);
+                await sendChatReply(padId,
+                    '\ud83d\udca1 Suggestion ready \u2014 review in the comments sidebar.');
+              } else {
+                logger.warn(`Suggest failed, falling back to apply: ${editResult.error}`);
+                editResult = await applyEdit(pad, editData);
+                if (editResult.success) {
+                  applied = true;
+                  const explanation = editData.explanation || 'Edit applied.';
+                  await sendChatReply(padId,
+                      `\u2705 ${explanation} (suggestion failed; applied directly)`);
+                }
+              }
             } else {
-              logger.warn(`Edit failed: ${editResult.error}`);
-              // Fall through to send the raw response
+              editResult = await applyEdit(pad, editData);
+              if (editResult.success) {
+                applied = true;
+                const explanation = editData.explanation || 'Edit applied.';
+                logger.info(`AI edit applied: pad=${padId} find="${editData.findText.substring(0, 50)}" replace="${editData.replaceText.substring(0, 50)}"`);
+                await sendChatReply(padId, `\u2705 ${explanation}`);
+              } else {
+                logger.warn(`Edit failed: ${editResult.error}`);
+                // Fall through to send the raw response
+              }
             }
           }
         } catch (e) {
