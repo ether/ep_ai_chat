@@ -61,6 +61,54 @@ Chat-specific settings go under `ep_ai_core.chat` in `settings.json`:
 | `maxContextChars` | `50000` | Max characters of pad content sent to the LLM |
 | `chatHistoryLength` | `20` | Number of recent chat messages included as context |
 | `conversationBufferSize` | `10` | Number of conversation turns remembered per pad |
+| `suggestionMode` | `auto` | Suggestion routing mode. See "Suggestion Mode" section. |
+| `suggestionModePads` | `{}` | Per-pad suggestion-mode overrides. |
+
+## Suggestion Mode (with `ep_comments_page`)
+
+When [`ep_comments_page`](https://github.com/ether/ep_comments_page) is also
+installed, the AI defaults to creating a **suggestion comment** instead of
+editing the pad directly. The comment shows up in the comments sidebar with
+Accept and Revert controls — the document author reviews each change before
+it lands.
+
+If `ep_comments_page` is not installed, the AI falls back to direct editing
+exactly as before.
+
+### Overrides per request
+
+You can override the configured mode for a single chat message:
+
+```
+@ai apply: fix the typo in line 3
+@ai suggest: rewrite the introduction
+```
+
+`@ai apply:` always edits the pad directly. `@ai suggest:` always creates a
+suggestion comment (or, if `ep_comments_page` is missing, replies in chat
+explaining the missing dep and applies directly).
+
+### Configuration
+
+Add to `ep_ai_core.chat` in `settings.json`:
+
+```json
+{
+  "ep_ai_core": {
+    "chat": {
+      "suggestionMode": "auto",
+      "suggestionModePads": { "important-pad": "suggest" }
+    }
+  }
+}
+```
+
+| Setting | Values | Default | Description |
+|---|---|---|---|
+| `suggestionMode` | `"auto"`, `"suggest"`, `"apply"` | `"auto"` | Global default. `auto` = suggest if `ep_comments_page` is installed, else apply. |
+| `suggestionModePads` | `{ "padId": mode }` | `{}` | Per-pad overrides keyed by pad id. |
+
+The resolution cascade (highest priority wins): per-request override → per-pad → global → built-in default.
 
 ## How Editing Works
 

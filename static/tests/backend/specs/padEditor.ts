@@ -186,5 +186,90 @@ describe('ep_ai_chat - padEditor', function () {
       }
       assert.ok(foundInPool, `Author ${authorId} should be in the attribute pool`);
     });
+
+    it('stamps ep_ai_chat:requestedBy on the edited span when requesterAuthorId is provided',
+        async function () {
+          const padId = `test-edit-${randomString(10)}`;
+          await agent.get(
+              `/api/${apiVersion}/createPad?padID=${padId}&text=Provenance test text`)
+              .set('Authorization', await generateJWTToken());
+
+          const pad = await padManager.getPad(padId);
+          const aiAuthor = 'a.test_ai_prov';
+          const requester = 'a.alice_prov';
+          const result = await padEditor.applyEdit(pad, {
+            findText: 'Provenance test text',
+            replaceText: 'Provenance applied here',
+            authorId: aiAuthor,
+            requesterAuthorId: requester,
+          });
+          assert.ok(result.success, `edit should succeed; got: ${JSON.stringify(result)}`);
+
+          const updatedPad = await padManager.getPad(padId);
+          const pool = updatedPad.pool;
+
+          let foundProvenance = false;
+          for (const key in pool.numToAttrib) {
+            const [attrKey, attrVal] = pool.numToAttrib[key];
+            if (attrKey === 'ep_ai_chat:requestedBy' && attrVal === requester) {
+              foundProvenance = true;
+            }
+          }
+          assert.ok(foundProvenance,
+              'ep_ai_chat:requestedBy should be in the attribute pool with the requester id');
+
+          // And the attribute should be on the edited span itself, not just in the pool.
+          const atext = updatedPad.atext;
+          let onSpan = false;
+          for (const op of Changeset.deserializeOps(atext.attribs)) {
+            for (const [key, value] of attribsFromString(op.attribs, pool)) {
+              if (key === 'ep_ai_chat:requestedBy' && value === requester) {
+                onSpan = true;
+              }
+            }
+          }
+          assert.ok(onSpan, 'ep_ai_chat:requestedBy should be applied to the edited span');
+        });
+
+    it('omits the provenance attribute when requesterAuthorId is missing',
+        async function () {
+          const padId = `test-edit-${randomString(10)}`;
+          await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=No prov here`)
+              .set('Authorization', await generateJWTToken());
+
+          const pad = await padManager.getPad(padId);
+          const result = await padEditor.applyEdit(pad, {
+            findText: 'No prov here',
+            replaceText: 'Replaced cleanly',
+            authorId: 'a.test_ai_noprov',
+          });
+          assert.ok(result.success);
+
+          const updatedPad = await padManager.getPad(padId);
+          for (const key in updatedPad.pool.numToAttrib) {
+            const [attrKey] = updatedPad.pool.numToAttrib[key];
+            assert.notEqual(attrKey, 'ep_ai_chat:requestedBy',
+                'no provenance attribute should be added when requesterAuthorId is absent');
+          }
+        });
+
+    it('still applies the edit when requesterAuthorId is present but authorId is missing',
+        async function () {
+          const padId = `test-edit-${randomString(10)}`;
+          await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Prov only here`)
+              .set('Authorization', await generateJWTToken());
+
+          const pad = await padManager.getPad(padId);
+          const result = await padEditor.applyEdit(pad, {
+            findText: 'Prov only here',
+            replaceText: 'Replaced anyway',
+            requesterAuthorId: 'a.alice_only',
+          });
+          assert.ok(result.success,
+              `edit should succeed without authorId; got: ${JSON.stringify(result)}`);
+
+          const updated = await padManager.getPad(padId);
+          assert.ok(updated.text().includes('Replaced anyway'));
+        });
   });
 });

@@ -36,9 +36,15 @@ const applyEdit = async (pad, edit) => {
   const authorId = edit.authorId || '';
 
   try {
-    // Build author attributes so inserted text gets colored
-    const attribs = authorId ? [['author', authorId]] : undefined;
-    const pool = authorId ? pad.pool : undefined;
+    // Build attributes: author for color/attribution, ep_ai_chat:requestedBy
+    // for provenance so phase B can resolve "my writing" later.
+    const attribList = [];
+    if (authorId) attribList.push(['author', authorId]);
+    if (edit.requesterAuthorId) {
+      attribList.push(['ep_ai_chat:requestedBy', edit.requesterAuthorId]);
+    }
+    const attribs = attribList.length ? attribList : undefined;
+    const pool = attribs ? pad.pool : undefined;
 
     let changeset;
 

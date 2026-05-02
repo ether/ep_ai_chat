@@ -1,11 +1,21 @@
 'use strict';
 
+const OVERRIDE_RE = /^\s*(apply|suggest)\s*:\s*([\s\S]*)$/i;
+
 const extractMention = (text, trigger) => {
   const escapedTrigger = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(escapedTrigger, 'gi');
-  if (!regex.test(text)) return {mentioned: false, query: ''};
-  const query = text.replace(new RegExp(escapedTrigger, 'gi'), '').trim();
-  return {mentioned: true, query};
+  const triggerRe = new RegExp(escapedTrigger, 'gi');
+  if (!triggerRe.test(text)) return {mentioned: false, query: '', override: null};
+  const remainder = text.replace(new RegExp(escapedTrigger, 'gi'), '').trim();
+  const overrideMatch = remainder.match(OVERRIDE_RE);
+  if (overrideMatch) {
+    return {
+      mentioned: true,
+      override: overrideMatch[1].toLowerCase(),
+      query: overrideMatch[2].trim(),
+    };
+  }
+  return {mentioned: true, query: remainder, override: null};
 };
 
 const detectEditIntent = (query) => {
