@@ -58,6 +58,9 @@ jobs:
         name: Install Etherpad core dependencies
         working-directory: ./etherpad-lite
         run: bin/installDeps.sh
+      - name: Install peer dep ep_ai_core from registry
+        working-directory: ./etherpad-lite
+        run: pnpm run plugins i ep_ai_core
       - name: Install plugin
         working-directory: ./etherpad-lite
         run: |
