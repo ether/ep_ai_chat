@@ -12,12 +12,20 @@ const isEditRequest = (messages) => {
 };
 
 const getDocumentText = (messages) => {
-  // The system messages contain the pad content
+  // The system messages contain the pad content. contextBuilder.js wraps
+  // it in "--- BEGIN DOCUMENT (pad: ...) ---\n<text>\n--- END DOCUMENT ---".
+  // We also fall back to the legacy "Current pad content:" header in case
+  // older callers or tests are still around.
   for (const m of messages) {
     if (m.role === 'system' || m.role === undefined) {
       const content = typeof m === 'string' ? m : m.content;
-      const match = content?.match(/Current pad content[^:]*:\n\n([\s\S]*?)(\n\nAuthors:|$)/);
-      if (match) return match[1].trim();
+      if (!content) continue;
+      const newFmt = content.match(
+          /--- BEGIN DOCUMENT[^-]*---\n([\s\S]*?)\n--- END DOCUMENT ---/);
+      if (newFmt) return newFmt[1].trim();
+      const oldFmt = content.match(
+          /Current pad content[^:]*:\n\n([\s\S]*?)(\n\nAuthors:|$)/);
+      if (oldFmt) return oldFmt[1].trim();
     }
   }
   return null;
