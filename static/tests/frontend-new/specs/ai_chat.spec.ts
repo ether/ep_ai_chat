@@ -5,45 +5,10 @@ import {
   showChat,
   getCurrentChatMessageCount,
 } from "ep_etherpad-lite/tests/frontend-new/helper/padHelper";
-import http from "http";
 
-// Mock LLM server that responds to Anthropic API requests
-let mockLLM: http.Server;
-let mockPort: number;
-
-test.beforeAll(async () => {
-  await new Promise<void>((resolve) => {
-    mockLLM = http.createServer((req, res) => {
-      let body = '';
-      req.on('data', (chunk: string) => { body += chunk; });
-      req.on('end', () => {
-        res.writeHead(200, {'Content-Type': 'application/json'});
-        // Respond in Anthropic format
-        res.end(JSON.stringify({
-          content: [{type: 'text', text: 'I can see this pad was written by you! The content appears to be a test message.'}],
-          usage: {input_tokens: 100, output_tokens: 25},
-        }));
-      });
-    });
-    mockLLM.listen(0, () => {
-      const addr = mockLLM.address();
-      mockPort = typeof addr === 'object' && addr ? addr.port : 0;
-      resolve();
-    });
-  });
-
-  // Update Etherpad settings to use the mock LLM
-  // We do this by hitting the admin API to update settings at runtime
-  // For now, we rely on the settings.json being configured with the mock URL
-  // The test assumes settings.json has ep_ai_core configured
-});
-
-test.afterAll(async () => {
-  await new Promise<void>((resolve) => {
-    if (mockLLM) mockLLM.close(() => resolve());
-    else resolve();
-  });
-});
+// The Etherpad instance under test is configured (via the workflow's
+// generated settings.json) to point ep_ai_core at a sidecar mock LLM
+// server. Tests don't need to set up their own mock here.
 
 test.beforeEach(async ({page, context}) => {
   await context.clearCookies();

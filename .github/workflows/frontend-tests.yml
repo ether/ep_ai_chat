@@ -49,13 +49,47 @@ jobs:
         working-directory: ./etherpad-lite
         run: |
           pnpm run plugins i --path ../../plugin
-      - name: Create settings.json
+      - name: Create settings.json with mocked LLM endpoint
         working-directory: ./etherpad-lite
-        run: cp ./src/tests/settings.json settings.json
+        shell: bash
+        run: |
+          # Start from the standard test settings, then merge in an
+          # ep_ai_core block pointing the AI plugin at our local mock LLM.
+          # rateLimitMs is shrunk to 100 so tests that send back-to-back
+          # @ai messages aren't dropped by the production 5s rate limit.
+          jq '.ep_ai_core = {
+                "apiBaseUrl": "http://127.0.0.1:18089",
+                "apiKey": "test-key",
+                "model": "test-model",
+                "provider": "openai",
+                "access": {"defaultMode": "full", "pads": {}},
+                "chat": {
+                  "trigger": "@ai",
+                  "authorName": "AI Assistant",
+                  "maxContextChars": 50000,
+                  "chatHistoryLength": 20,
+                  "conversationBufferSize": 10,
+                  "rateLimitMs": 100
+                }
+              }' ./src/tests/settings.json > settings.json
       - name: Run the frontend tests
         working-directory: ./etherpad-lite
         shell: bash
         run: |
+          # Start the mock LLM server (bundled with the plugin under test/)
+          # in the background so the AI plugin has somewhere to call.
+          MOCK_LLM_PORT=18089 node ../plugin/test/mock-llm-server.js &
+          MOCK_LLM_PID=$!
+          # Make sure it's actually accepting before launching Etherpad.
+          for i in $(seq 1 15); do
+            if curl -sSfo /dev/null -X POST \
+                -H "Content-Type: application/json" \
+                -d '{"messages":[{"role":"user","content":"ping"}]}' \
+                http://127.0.0.1:18089/chat/completions; then
+              break
+            fi
+            sleep 1
+          done
           pnpm run dev &
           connected=false
           can_connect() {
@@ -70,3 +104,7 @@ jobs:
           cd src
           pnpm exec playwright install chromium --with-deps
           pnpm run test-ui --project=chromium
+          ec=$?
+          # Best-effort cleanup; CI runner is going away anyway.
+          kill "$MOCK_LLM_PID" 2>/dev/null || true
+          exit $ec
