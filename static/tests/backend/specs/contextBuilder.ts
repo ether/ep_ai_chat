@@ -61,5 +61,63 @@ describe('ep_ai_chat - contextBuilder', function () {
       assert.ok(all.includes('Prev Q'));
       assert.ok(all.includes('Prev A'));
     });
+
+    it('includes requester name and authorId in the system context', async function () {
+      const padId = `test-ctx-${randomString(10)}`;
+      await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Hello`)
+          .set('Authorization', await generateJWTToken());
+
+      const pad = await padManager.getPad(padId);
+      const settings = {systemPrompt: 'Helper.', maxContextChars: 50000, chatHistoryLength: 20};
+      const requester = {authorId: 'a.alice123', name: 'Alice'};
+      const messages = await contextBuilder.buildContext(
+          pad, padId, 'edit my writing', [], settings, 'full', null, requester);
+
+      const systemContent = messages
+          .filter((m: any) => m.role === 'system')
+          .map((m: any) => m.content)
+          .join(' ');
+      assert.ok(systemContent.includes('Alice'),
+          `system content should mention requester name; got: ${systemContent}`);
+      assert.ok(systemContent.includes('a.alice123'),
+          `system content should mention requester authorId; got: ${systemContent}`);
+    });
+
+    it('falls back to Anonymous when requester name is missing', async function () {
+      const padId = `test-ctx-${randomString(10)}`;
+      await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Hello`)
+          .set('Authorization', await generateJWTToken());
+
+      const pad = await padManager.getPad(padId);
+      const settings = {systemPrompt: 'Helper.', maxContextChars: 50000, chatHistoryLength: 20};
+      const requester = {authorId: 'a.unknown', name: null};
+      const messages = await contextBuilder.buildContext(
+          pad, padId, 'who am I?', [], settings, 'full', null, requester);
+
+      const systemContent = messages
+          .filter((m: any) => m.role === 'system')
+          .map((m: any) => m.content)
+          .join(' ');
+      assert.ok(systemContent.includes('Anonymous'),
+          `system content should fall back to "Anonymous"; got: ${systemContent}`);
+    });
+
+    it('omits the identity sentence when requester is undefined (back-compat)', async function () {
+      const padId = `test-ctx-${randomString(10)}`;
+      await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Hello`)
+          .set('Authorization', await generateJWTToken());
+
+      const pad = await padManager.getPad(padId);
+      const settings = {systemPrompt: 'Helper.', maxContextChars: 50000, chatHistoryLength: 20};
+      const messages = await contextBuilder.buildContext(
+          pad, padId, 'hi', [], settings, 'full');
+
+      const systemContent = messages
+          .filter((m: any) => m.role === 'system')
+          .map((m: any) => m.content)
+          .join(' ');
+      assert.ok(!/currently chatting with you/i.test(systemContent),
+          'should not include identity sentence when no requester is provided');
+    });
   });
 });
