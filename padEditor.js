@@ -3,19 +3,26 @@
 const Changeset = require('ep_etherpad-lite/static/js/Changeset');
 const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
 const authorManager = require('ep_etherpad-lite/node/db/AuthorManager');
-const socketio = require('ep_etherpad-lite/node/hooks/express').socketio;
 const log4js = require('ep_etherpad-lite/node_modules/log4js');
 const logger = log4js.getLogger('ep_ai_chat:editor');
 
 /**
  * Broadcast AI author info to all clients on a pad so the AI
  * appears in the user/author list with name and color.
+ *
+ * `io` is the socket.io server reference. The plugin's index.js
+ * captures it via the `socketio` hook and threads it down here so we
+ * don't depend on a non-existent module-level export.
  */
-const announceAiAuthor = async (padId, authorId) => {
+const announceAiAuthor = async (padId, authorId, io) => {
   try {
     const authorInfo = await authorManager.getAuthor(authorId);
-    if (!authorInfo || !socketio) return;
-    socketio.sockets.in(padId).emit('message', {
+    if (!authorInfo || !io) {
+      logger.warn(
+          `announceAiAuthor: skipped — authorInfo=${!!authorInfo} io=${!!io}`);
+      return;
+    }
+    io.sockets.in(padId).emit('message', {
       type: 'COLLABROOM',
       data: {
         type: 'USER_NEWINFO',
@@ -31,7 +38,7 @@ const announceAiAuthor = async (padId, authorId) => {
   }
 };
 
-const applyEdit = async (pad, edit) => {
+const applyEdit = async (pad, edit, io = null) => {
   const currentText = pad.text();
   const authorId = edit.authorId || '';
 
@@ -63,7 +70,7 @@ const applyEdit = async (pad, edit) => {
     await padMessageHandler.updatePadClients(pad);
 
     // Announce AI as an author so it appears in the user list
-    if (authorId) await announceAiAuthor(pad.id, authorId);
+    if (authorId) await announceAiAuthor(pad.id, authorId, io);
 
     return {success: true};
   } catch (err) {
@@ -73,3 +80,4 @@ const applyEdit = async (pad, edit) => {
 };
 
 exports.applyEdit = applyEdit;
+exports.announceAiAuthor = announceAiAuthor;

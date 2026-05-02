@@ -10,7 +10,7 @@ const {t} = require('ep_ai_core/i18n');
 
 const {extractMention} = require('./chatHandler');
 const {buildContext} = require('./contextBuilder');
-const {applyEdit} = require('./padEditor');
+const {applyEdit, announceAiAuthor} = require('./padEditor');
 const {suggestEdit} = require('./suggestEdit');
 const {resolveSuggestionMode} = require('./suggestionMode');
 
@@ -138,6 +138,38 @@ exports.loadSettings = async (hookName, {settings}) => {
   }
 };
 
+/**
+ * socketio: capture Etherpad's socket.io server reference so we can
+ * broadcast USER_NEWINFO (for the AI author chip) and pushAddComment
+ * (for AI suggestions) without needing an originating client socket.
+ * Etherpad doesn't expose `io` as a module property — this hook is the
+ * supported entry point.
+ */
+let socketioRef = null;
+exports.socketio = (hookName, {io}) => {
+  socketioRef = io;
+  logger.info('ep_ai_chat: socket.io reference captured');
+};
+exports.getSocketIo = () => socketioRef;
+
+/**
+ * userJoin: when a client joins a pad, push the AI's author info to the
+ * room so the AI shows up in the editors list immediately — without
+ * waiting for a first @ai request to trigger announceAiAuthor via an
+ * applied edit. Best-effort; never let this hook throw.
+ */
+exports.userJoin = async (hookName, {padId}) => {
+  logger.info(`userJoin hook fired for pad=${padId}`);
+  try {
+    if (!padId) return;
+    const aiId = await getAiAuthorId();
+    await announceAiAuthor(padId, aiId, socketioRef);
+    logger.info(`userJoin announce sent for pad=${padId} ai=${aiId} io=${!!socketioRef}`);
+  } catch (err) {
+    logger.warn(`userJoin announce failed: ${err.message}`);
+  }
+};
+
 exports.handleMessage = async (hookName, context) => {
   const {message} = context;
   if (!message || !message.data) return;
@@ -246,14 +278,13 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
 
             let editResult;
             if (useSuggest) {
-              const socketio = require('ep_etherpad-lite/node/hooks/express').socketio;
               editResult = await suggestEdit(pad, editData, {
                 requesterAuthorId: requestAuthor,
                 aiAuthorId: editData.authorId,
                 aiAuthorName: chatSettings.authorName,
                 commentManager: commentsModulesCache.commentManager,
                 shared: commentsModulesCache.shared,
-                io: socketio || null,
+                io: socketioRef,
               });
               if (editResult.success) {
                 applied = true;
@@ -263,7 +294,7 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
                     '\ud83d\udca1 Suggestion ready \u2014 review in the comments sidebar.');
               } else {
                 logger.warn(`Suggest failed, falling back to apply: ${editResult.error}`);
-                editResult = await applyEdit(pad, editData);
+                editResult = await applyEdit(pad, editData, socketioRef);
                 if (editResult.success) {
                   applied = true;
                   const explanation = editData.explanation || 'Edit applied.';
@@ -272,7 +303,7 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
                 }
               }
             } else {
-              editResult = await applyEdit(pad, editData);
+              editResult = await applyEdit(pad, editData, socketioRef);
               if (editResult.success) {
                 applied = true;
                 const explanation = editData.explanation || 'Edit applied.';
