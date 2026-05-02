@@ -73,3 +73,4 @@ const applyEdit = async (pad, edit) => {
 };
 
 exports.applyEdit = applyEdit;
+exports.announceAiAuthor = announceAiAuthor;

@@ -13,6 +13,14 @@ let padEditor = null;
  */
 exports.postAceInit = (hookName, context) => {
   padEditor = context.ace;
+  // Suppress the browser's native spellcheck on the chat input — the @ai
+  // trigger and other ad-hoc tokens otherwise get red-underlined as
+  // misspellings, which is visually noisy and (more importantly) fights
+  // the autocomplete UX.
+  try {
+    const chatInput = document.querySelector('#chatinput');
+    if (chatInput) chatInput.setAttribute('spellcheck', 'false');
+  } catch (e) { /* never break ace init */ }
 };
 
 /**

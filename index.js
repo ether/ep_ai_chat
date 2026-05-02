@@ -10,7 +10,7 @@ const {t} = require('ep_ai_core/i18n');
 
 const {extractMention} = require('./chatHandler');
 const {buildContext} = require('./contextBuilder');
-const {applyEdit} = require('./padEditor');
+const {applyEdit, announceAiAuthor} = require('./padEditor');
 const {suggestEdit} = require('./suggestEdit');
 const {resolveSuggestionMode} = require('./suggestionMode');
 
@@ -135,6 +135,22 @@ exports.loadSettings = async (hookName, {settings}) => {
     logger.warn(
         "ep_ai_chat: suggestionMode is set to 'suggest' but ep_comments_page is " +
         "not installed; falling back to 'apply'");
+  }
+};
+
+/**
+ * userJoin: when a client joins a pad, push the AI's author info to the
+ * room so the AI shows up in the editors list immediately — without
+ * waiting for a first @ai request to trigger announceAiAuthor via an
+ * applied edit. Best-effort; never let this hook throw.
+ */
+exports.userJoin = async (hookName, {padId}) => {
+  try {
+    if (!padId) return;
+    const aiId = await getAiAuthorId();
+    await announceAiAuthor(padId, aiId);
+  } catch (err) {
+    logger.warn(`userJoin announce failed: ${err.message}`);
   }
 };
 
