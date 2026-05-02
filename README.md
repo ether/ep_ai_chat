@@ -31,7 +31,10 @@ The AI will respond in chat. If you ask it to make changes and the pad has
 
 ## Configuration
 
-Chat-specific settings go under `ep_ai_core.chat` in `settings.json`:
+Chat-specific settings go under `ep_ai_core.chat` in `settings.json`. The
+`apiBaseUrl`, `apiKey`, `model`, and `provider` fields belong directly under
+`ep_ai_core` and tell the plugin which LLM to talk to. See
+"LLM provider examples" below for the most common providers.
 
 ```json
 {
@@ -51,6 +54,90 @@ Chat-specific settings go under `ep_ai_core.chat` in `settings.json`:
   }
 }
 ```
+
+## LLM provider examples
+
+The plugin speaks two protocols: Anthropic's `/messages` and the OpenAI
+`/chat/completions` shape. Anything that exposes one of those works. The
+provider is auto-detected from the URL; set `"provider": "anthropic"` or
+`"provider": "openai"` to force it.
+
+### Anthropic Claude
+
+```json
+{
+  "ep_ai_core": {
+    "apiBaseUrl": "https://api.anthropic.com/v1",
+    "apiKey": "sk-ant-...",
+    "model": "claude-sonnet-4-20250514",
+    "provider": "anthropic"
+  }
+}
+```
+
+### OpenAI
+
+```json
+{
+  "ep_ai_core": {
+    "apiBaseUrl": "https://api.openai.com/v1",
+    "apiKey": "sk-...",
+    "model": "gpt-4o",
+    "provider": "openai"
+  }
+}
+```
+
+### Google Gemini
+
+Gemini exposes an OpenAI-compatible endpoint, so the `openai` provider works
+straight out of the box.
+
+```json
+{
+  "ep_ai_core": {
+    "apiBaseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "apiKey": "AIza...",
+    "model": "gemini-2.5-flash",
+    "provider": "openai"
+  }
+}
+```
+
+### GitHub Models (powers GitHub Copilot)
+
+The GitHub Models inference API is OpenAI-compatible. The `apiKey` is a
+GitHub personal access token with the `models:read` scope.
+
+```json
+{
+  "ep_ai_core": {
+    "apiBaseUrl": "https://models.github.ai/inference",
+    "apiKey": "ghp_...",
+    "model": "openai/gpt-4o",
+    "provider": "openai"
+  }
+}
+```
+
+### xAI Grok
+
+```json
+{
+  "ep_ai_core": {
+    "apiBaseUrl": "https://api.x.ai/v1",
+    "apiKey": "xai-...",
+    "model": "grok-2-latest",
+    "provider": "openai"
+  }
+}
+```
+
+> **Tip:** any other provider that ships an OpenAI-compatible endpoint
+> (Mistral, Groq, OpenRouter, a self-hosted Ollama, an internal gateway,
+> etc.) works the same way — point `apiBaseUrl` at it, set
+> `"provider": "openai"`, pick the right `model` string for that provider,
+> and you're done.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
