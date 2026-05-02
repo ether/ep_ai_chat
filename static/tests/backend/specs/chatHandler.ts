@@ -41,6 +41,40 @@ describe('ep_ai_chat - chatHandler', function () {
       assert.ok(r.mentioned);
       assert.equal(r.query.trim(), '');
     });
+
+    it('returns override="apply" for "@ai apply: ..." messages', function () {
+      const r = chatHandler.extractMention('@ai apply: rewrite the intro', '@ai');
+      assert.equal(r.mentioned, true);
+      assert.equal(r.override, 'apply');
+      assert.equal(r.query, 'rewrite the intro');
+    });
+
+    it('returns override="suggest" for "@ai suggest: ..." messages', function () {
+      const r = chatHandler.extractMention('@ai suggest: fix typos', '@ai');
+      assert.equal(r.override, 'suggest');
+      assert.equal(r.query, 'fix typos');
+    });
+
+    it('lowercases the override keyword and tolerates spacing', function () {
+      const a = chatHandler.extractMention('@ai APPLY: do it', '@ai');
+      const b = chatHandler.extractMention('@ai  Suggest : do it', '@ai');
+      assert.equal(a.override, 'apply');
+      assert.equal(b.override, 'suggest');
+      assert.equal(a.query, 'do it');
+      assert.equal(b.query, 'do it');
+    });
+
+    it('returns override=null when no keyword is present', function () {
+      const r = chatHandler.extractMention('@ai please help me', '@ai');
+      assert.equal(r.override, null);
+      assert.equal(r.query, 'please help me');
+    });
+
+    it('does not match a keyword without the colon', function () {
+      const r = chatHandler.extractMention('@ai apply this fix', '@ai');
+      assert.equal(r.override, null);
+      assert.equal(r.query, 'apply this fix');
+    });
   });
 
   describe('detectEditIntent', function () {
