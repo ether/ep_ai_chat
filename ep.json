@@ -5,7 +5,8 @@
       "hooks": {
         "loadSettings": "ep_ai_chat/index",
         "handleMessage": "ep_ai_chat/index",
-        "userJoin": "ep_ai_chat/index"
+        "userJoin": "ep_ai_chat/index",
+        "socketio": "ep_ai_chat/index"
       },
       "client_hooks": {
         "postAceInit": "ep_ai_chat/static/js/index",
