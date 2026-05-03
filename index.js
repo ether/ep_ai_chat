@@ -153,6 +153,23 @@ exports.socketio = (hookName, {io}) => {
 exports.getSocketIo = () => socketioRef;
 
 /**
+ * clientVars: expose the trigger string and the AI author's identity to
+ * the client. The chatPrefillFromUser client hook uses this to recognise
+ * the AI's row in the user list and substitute "@ai " for the otherwise
+ * useless "@AI_Assistant " prefill.
+ */
+exports.clientVars = async (hookName, context) => {
+  const aiId = await getAiAuthorId();
+  return {
+    ep_ai_chat: {
+      trigger: chatSettings.trigger,
+      authorName: chatSettings.authorName,
+      authorId: aiId,
+    },
+  };
+};
+
+/**
  * userJoin: when a client joins a pad, push the AI's author info to the
  * room so the AI shows up in the editors list immediately — without
  * waiting for a first @ai request to trigger announceAiAuthor via an

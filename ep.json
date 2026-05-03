@@ -6,11 +6,13 @@
         "loadSettings": "ep_ai_chat/index",
         "handleMessage": "ep_ai_chat/index",
         "userJoin": "ep_ai_chat/index",
-        "socketio": "ep_ai_chat/index"
+        "socketio": "ep_ai_chat/index",
+        "clientVars": "ep_ai_chat/index"
       },
       "client_hooks": {
         "postAceInit": "ep_ai_chat/static/js/index",
-        "chatSendMessage": "ep_ai_chat/static/js/index"
+        "chatSendMessage": "ep_ai_chat/static/js/index",
+        "chatPrefillFromUser": "ep_ai_chat/static/js/index"
       }
     }
   ]
