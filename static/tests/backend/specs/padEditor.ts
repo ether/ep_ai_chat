@@ -164,6 +164,82 @@ describe('ep_ai_chat - padEditor', function () {
       assert.ok(foundAuthor, `Author ${authorId} should be in the atext attributes`);
     });
 
+    it('preserves the original author on unchanged words inside an AI edit',
+        async function () {
+          // Seed the pad with text written by Alice. Then ask the AI to do a
+          // surgical rewrite that swaps two short phrases. Words that exist
+          // verbatim in both findText and replaceText must keep Alice's
+          // author attribution — only the genuinely-changed runs should be
+          // tagged with the AI author.
+          const padId = `test-edit-${randomString(10)}`;
+          const aliceId = 'a.alice_surgical';
+          const aiId = 'a.ai_surgical';
+
+          // Create empty pad, then write Alice's content via her own
+          // changeset so her author attribute lands on every char.
+          await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=`)
+              .set('Authorization', await generateJWTToken());
+          const seed = 'we would love to play more football at recess';
+          {
+            const pad = await padManager.getPad(padId);
+            const cs = Changeset.makeSplice(
+                pad.text(), 0, pad.text().length - 1, seed,
+                [['author', aliceId]], pad.pool);
+            await pad.appendRevision(cs, aliceId);
+          }
+
+          // AI rewrites: only "love" -> "deeply appreciate the chance" and
+          // "at" -> "during" change. Surrounding words are byte-identical.
+          const rewritten =
+              'we would deeply appreciate the chance to play more football during recess';
+          const pad = await padManager.getPad(padId);
+          const result = await padEditor.applyEdit(pad, {
+            findText: seed,
+            replaceText: rewritten,
+            authorId: aiId,
+          });
+          assert.ok(result.success, `edit should succeed; got ${JSON.stringify(result)}`);
+
+          const updated = await padManager.getPad(padId);
+          assert.ok(updated.text().includes(rewritten),
+              `replacement should be visible; got "${updated.text()}"`);
+
+          // Walk the atext and group consecutive runs by their author
+          // attribute. We expect Alice's author to be present on at least
+          // one run, the AI's on at least one run, and the unchanged
+          // tail "recess" to live in an Alice-authored run.
+          const pool = updated.pool;
+          const text = updated.text();
+          let cursor = 0;
+          const runs: Array<{text: string; author: string}> = [];
+          for (const op of Changeset.deserializeOps(updated.atext.attribs)) {
+            let author = '';
+            for (const [key, value] of attribsFromString(op.attribs, pool)) {
+              if (key === 'author') author = value;
+            }
+            const slice = text.substring(cursor, cursor + op.chars);
+            cursor += op.chars;
+            runs.push({text: slice, author});
+          }
+
+          const findRunCovering = (substr: string) =>
+              runs.find((r) => r.text.includes(substr));
+
+          // Unchanged words must still be Alice's.
+          assert.equal(findRunCovering('we would')?.author, aliceId,
+              'unchanged "we would" should still be authored by Alice');
+          assert.equal(findRunCovering('to play more football')?.author, aliceId,
+              'unchanged "to play more football" should still be authored by Alice');
+          assert.equal(findRunCovering('recess')?.author, aliceId,
+              'unchanged "recess" should still be authored by Alice');
+
+          // The genuinely-new phrases must be the AI's.
+          assert.equal(findRunCovering('deeply appreciate')?.author, aiId,
+              'new "deeply appreciate" run should be authored by the AI');
+          assert.equal(findRunCovering('during')?.author, aiId,
+              'new "during" run should be authored by the AI');
+        });
+
     it('applies author attributes for appended text', async function () {
       const padId = `test-edit-${randomString(10)}`;
       await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Base`)

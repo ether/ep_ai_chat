@@ -1,9 +1,11 @@
 'use strict';
 
 const Changeset = require('ep_etherpad-lite/static/js/Changeset');
+const {Builder} = require('ep_etherpad-lite/static/js/Builder');
 const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
 const authorManager = require('ep_etherpad-lite/node/db/AuthorManager');
 const log4js = require('ep_etherpad-lite/node_modules/log4js');
+const {diffOps, countNewlines} = require('./surgicalDiff');
 const logger = log4js.getLogger('ep_ai_chat:editor');
 
 /**
@@ -38,6 +40,30 @@ const announceAiAuthor = async (padId, authorId, io) => {
   }
 };
 
+/**
+ * Construct a changeset that turns currentText into currentText with
+ * findText (at idx) replaced by replaceText, but ONLY tagging the
+ * inserted runs with the AI's author attributes. Runs that already
+ * existed verbatim in findText keep their original authorship.
+ */
+const buildSurgicalChangeset = ({currentText, idx, edit, attribs, pool}) => {
+  const builder = new Builder(currentText.length);
+  const before = currentText.substring(0, idx);
+  const after = currentText.substring(idx + edit.findText.length);
+  if (before.length) builder.keepText(before);
+  for (const op of diffOps(edit.findText, edit.replaceText)) {
+    if (op.type === 'keep') {
+      builder.keepText(op.text);
+    } else if (op.type === 'remove') {
+      builder.remove(op.text.length, countNewlines(op.text));
+    } else if (op.type === 'insert') {
+      builder.insert(op.text, attribs, pool);
+    }
+  }
+  if (after.length) builder.keepText(after);
+  return builder.toString();
+};
+
 const applyEdit = async (pad, edit, io = null) => {
   const currentText = pad.text();
   const authorId = edit.authorId || '';
@@ -61,7 +87,15 @@ const applyEdit = async (pad, edit, io = null) => {
     } else if (edit.findText && edit.replaceText !== undefined) {
       const idx = currentText.indexOf(edit.findText);
       if (idx === -1) return {success: false, error: `Text not found: "${edit.findText.substring(0, 100)}"`};
-      changeset = Changeset.makeSplice(currentText, idx, edit.findText.length, edit.replaceText, attribs, pool);
+      // Diff findText -> replaceText so we only re-author the genuinely-
+      // changed runs. A single makeSplice would tag every char of
+      // replaceText with our author attribute even where the AI didn't
+      // actually rewrite anything (e.g. "we would <love> to play" ->
+      // "we would <deeply...> to play" must keep "we would" / "to play"
+      // attributed to whoever originally wrote them).
+      changeset = buildSurgicalChangeset({
+        currentText, idx, edit, attribs, pool,
+      });
     } else {
       return {success: false, error: 'No valid edit operation specified'};
     }
