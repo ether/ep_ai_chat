@@ -24,6 +24,27 @@ exports.postAceInit = (hookName, context) => {
 };
 
 /**
+ * chatPrefillFromUser: when Etherpad core prefills "@<name> " in the chat
+ * input on a user-list click, swap in the configured trigger string for
+ * the AI's row. Without this, clicking the AI's chip in the user list
+ * would prefill "@AI_Assistant " which doesn't match anything the
+ * server-side mention extractor recognises.
+ *
+ * Requires the chatPrefillFromUser hook (Etherpad >= the version that
+ * landed ether/etherpad#7660). On older cores this hook is silently
+ * never called and clicks fall back to the default prefill.
+ */
+exports.chatPrefillFromUser = (hookName, context, cb) => {
+  try {
+    const ai = (window.clientVars && window.clientVars.ep_ai_chat) || {};
+    if (ai.authorId && context && context.authorId === ai.authorId) {
+      return cb(`${ai.trigger || '@ai'} `);
+    }
+  } catch (_e) { /* fall through to default */ }
+  return cb();
+};
+
+/**
  * chatSendMessage: before a chat message is sent, capture the current
  * selection in the pad and attach it to the message.
  */
