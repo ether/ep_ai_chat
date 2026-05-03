@@ -4,6 +4,9 @@ AI chat participant for Etherpad. When users @mention the AI in pad chat, it
 reads the document, understands who wrote what, and responds. It can also edit
 the pad directly when asked.
 
+![Demo: Alice and Bob co-author a letter, then `@ai` improves a phrase — AI's
+edit lands inline with its own author colour and an explanation in chat.](demo.gif)
+
 ## Installation
 
 Requires `ep_ai_core`.
