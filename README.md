@@ -136,8 +136,53 @@ GitHub personal access token with the `models:read` scope.
 }
 ```
 
+### Ollama (self-hosted, local models)
+
+[Ollama](https://ollama.com) exposes an OpenAI-compatible endpoint at
+`/v1`, so it slots in like any other provider. No API key is required —
+Ollama ignores the `Authorization` header — but `apiKey` must still be
+set to a non-empty string (any value works).
+
+Pull a model first, then point Etherpad at the local server:
+
+```bash
+ollama pull gemma3
+# or: llama3.1, llama3.2, qwen2.5, mistral, deepseek-r1, ...
+```
+
+```json
+{
+  "ep_ai_core": {
+    "apiBaseUrl": "http://localhost:11434/v1",
+    "apiKey": "ollama",
+    "model": "gemma3:latest",
+    "provider": "openai"
+  }
+}
+```
+
+The `model` string is whatever `ollama list` shows (including the tag,
+e.g. `gemma3:latest` or `llama3.1:8b`). Anything Ollama can serve will
+work for plain chat replies.
+
+**Note on edits with smaller models.** When a user asks the AI to edit
+the pad, the plugin asks the model to return a fenced ` ```json` block
+of the form `{"action":"edit","findText":"...","replaceText":"..."}`.
+Larger frontier models follow this reliably; smaller local models (e.g.
+3–4B parameter quantised builds) sometimes wander off-format, in which
+case the response is sent to chat as-is instead of being applied as an
+edit. Reach for an 8B+ instruction-tuned model (`llama3.1:8b`,
+`qwen2.5:14b`, etc.) for the most reliable in-pad editing; smaller
+models are fine for Q&A, summarisation, and discussion.
+
+If Etherpad runs in a container, replace `localhost` with the host
+reachable from inside the container — typically `http://host.docker.internal:11434/v1`
+on Docker Desktop, or the host's LAN IP elsewhere. By default Ollama
+binds to `127.0.0.1`; export `OLLAMA_HOST=0.0.0.0` to bind all
+interfaces if Etherpad runs on a different machine.
+
 > **Tip:** any other provider that ships an OpenAI-compatible endpoint
-> (Mistral, Groq, OpenRouter, a self-hosted Ollama, an internal gateway,
+> (Mistral, Groq, OpenRouter, LM Studio, vLLM, an internal gateway,
 > etc.) works the same way — point `apiBaseUrl` at it, set
 > `"provider": "openai"`, pick the right `model` string for that provider,
 > and you're done.
