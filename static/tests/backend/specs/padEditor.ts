@@ -361,6 +361,7 @@ describe('ep_ai_chat - padEditor', function () {
               .set('Authorization', await generateJWTToken());
 
           const pad = await padManager.getPad(padId);
+          const baseLen = pad.text().length; // includes trailing '\n'
           const result = await padEditor.applyEdit(pad, {appendText: '\nMore'});
           assert.ok(result.success,
               `append should succeed without authorId; got: ${JSON.stringify(result)}`);
@@ -368,16 +369,39 @@ describe('ep_ai_chat - padEditor', function () {
           const updated = await padManager.getPad(padId);
           const pool = updated.pool;
 
-          // Every '+' op in the resulting atext attribs must reference some
-          // author attribute slot — i.e. no insert is unattributed.
+          // The system author must be registered in the pool — proves we
+          // substituted SYSTEM_AUTHOR_ID rather than emitting an
+          // unattributed insert.
+          let sawSystemAuthor = false;
+          for (const k of Object.keys(pool.numToAttrib || {})) {
+            const [key, value] = pool.numToAttrib[k];
+            if (key === 'author' && value === 'a.ep-ai-chat-system') sawSystemAuthor = true;
+          }
+          assert.ok(sawSystemAuthor,
+              "system author 'a.ep-ai-chat-system' should be in the attribute pool");
+
+          // Walk attribs alongside text. The run(s) covering our newly
+          // appended span (positions >= baseLen-1, accounting for the
+          // pre-trailing-'\n' splice position) must each carry an author
+          // attribute. Pre-existing runs from the API-seeded pad are
+          // intentionally NOT checked — that text was inserted by the
+          // createPad API before this PR's invariant existed.
+          let cursor = 0;
+          // applyEdit inserts at currentText.length - 1, i.e. before the
+          // trailing '\n'. So the new span starts at baseLen - 1.
+          const insertStart = baseLen - 1;
           for (const op of Changeset.deserializeOps(updated.atext.attribs)) {
+            const opStart = cursor;
+            const opEnd = cursor + op.chars;
+            cursor = opEnd;
+            if (opEnd <= insertStart) continue; // entirely in the seed
             let hasAuthor = false;
             for (const [key] of attribsFromString(op.attribs, pool)) {
               if (key === 'author') hasAuthor = true;
             }
             assert.ok(hasAuthor,
-                `every run in pad.atext.attribs should carry an author attribute; ` +
-                `op=${JSON.stringify(op)}`);
+                `run covering the newly-appended span should carry an author ` +
+                `attribute; op=${JSON.stringify(op)} opStart=${opStart} opEnd=${opEnd}`);
           }
 
           // And text+attribs must agree on length — the original bug shape.
