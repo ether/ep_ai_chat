@@ -347,5 +347,46 @@ describe('ep_ai_chat - padEditor', function () {
           const updated = await padManager.getPad(padId);
           assert.ok(updated.text().includes('Replaced anyway'));
         });
+
+    // Regression: an empty/missing authorId used to produce a changeset whose
+    // insert op carried no 'author' attribute. Etherpad core then stored an
+    // AText whose text and attribs disagreed on length, and every later
+    // client failed setDocAText reconciliation on load. The plugin must now
+    // fall back to a stable system author so the changeset is always
+    // well-formed, regardless of caller hygiene.
+    it('inserts carry an author attribute even when authorId is empty',
+        async function () {
+          const padId = `test-edit-${randomString(10)}`;
+          await agent.get(`/api/${apiVersion}/createPad?padID=${padId}&text=Base text`)
+              .set('Authorization', await generateJWTToken());
+
+          const pad = await padManager.getPad(padId);
+          const result = await padEditor.applyEdit(pad, {appendText: '\nMore'});
+          assert.ok(result.success,
+              `append should succeed without authorId; got: ${JSON.stringify(result)}`);
+
+          const updated = await padManager.getPad(padId);
+          const pool = updated.pool;
+
+          // Every '+' op in the resulting atext attribs must reference some
+          // author attribute slot — i.e. no insert is unattributed.
+          for (const op of Changeset.deserializeOps(updated.atext.attribs)) {
+            let hasAuthor = false;
+            for (const [key] of attribsFromString(op.attribs, pool)) {
+              if (key === 'author') hasAuthor = true;
+            }
+            assert.ok(hasAuthor,
+                `every run in pad.atext.attribs should carry an author attribute; ` +
+                `op=${JSON.stringify(op)}`);
+          }
+
+          // And text+attribs must agree on length — the original bug shape.
+          let attribsLength = 0;
+          for (const op of Changeset.deserializeOps(updated.atext.attribs)) {
+            attribsLength += op.chars;
+          }
+          assert.equal(attribsLength, updated.atext.text.length,
+              'pad.atext.attribs total chars must equal pad.atext.text length');
+        });
   });
 });

@@ -8,6 +8,13 @@ const log4js = require('ep_etherpad-lite/node_modules/log4js');
 const {diffOps, countNewlines} = require('./surgicalDiff');
 const logger = log4js.getLogger('ep_ai_chat:editor');
 
+// Fallback author used when the caller doesn't supply edit.authorId. An insert
+// op with no author attribute desyncs pad.atext.text vs pad.atext.attribs and
+// breaks every later client load in ace2_inner.ts:setDocAText. Using a stable
+// system author keeps the AText well-formed without forcing every plugin entry
+// point to allocate one up-front. Mirrors core Pad.SYSTEM_AUTHOR_ID.
+const SYSTEM_AUTHOR_ID = 'a.ep-ai-chat-system';
+
 /**
  * Broadcast AI author info to all clients on a pad so the AI
  * appears in the user/author list with name and color.
@@ -66,18 +73,22 @@ const buildSurgicalChangeset = ({currentText, idx, edit, attribs, pool}) => {
 
 const applyEdit = async (pad, edit, io = null) => {
   const currentText = pad.text();
-  const authorId = edit.authorId || '';
+  // Callers that don't supply an authorId still need the resulting insert ops
+  // to carry an 'author' attribute, otherwise pad.atext.text and
+  // pad.atext.attribs end up with different lengths and the pad becomes
+  // unloadable. Fall back to a stable system author so the changeset is
+  // always well-formed.
+  const effectiveAuthorId = edit.authorId || SYSTEM_AUTHOR_ID;
 
   try {
     // Build attributes: author for color/attribution, ep_ai_chat:requestedBy
     // for provenance so phase B can resolve "my writing" later.
-    const attribList = [];
-    if (authorId) attribList.push(['author', authorId]);
+    const attribList = [['author', effectiveAuthorId]];
     if (edit.requesterAuthorId) {
       attribList.push(['ep_ai_chat:requestedBy', edit.requesterAuthorId]);
     }
-    const attribs = attribList.length ? attribList : undefined;
-    const pool = attribs ? pad.pool : undefined;
+    const attribs = attribList;
+    const pool = pad.pool;
 
     let changeset;
 
@@ -100,11 +111,13 @@ const applyEdit = async (pad, edit, io = null) => {
       return {success: false, error: 'No valid edit operation specified'};
     }
 
-    await pad.appendRevision(changeset, authorId);
+    await pad.appendRevision(changeset, effectiveAuthorId);
     await padMessageHandler.updatePadClients(pad);
 
-    // Announce AI as an author so it appears in the user list
-    if (authorId) await announceAiAuthor(pad.id, authorId, io);
+    // Announce AI as an author so it appears in the user list. Gated on the
+    // caller-supplied authorId, not the system fallback — the system author
+    // is intentionally invisible in the user list.
+    if (edit.authorId) await announceAiAuthor(pad.id, edit.authorId, io);
 
     return {success: true};
   } catch (err) {
