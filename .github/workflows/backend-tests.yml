@@ -16,6 +16,11 @@ jobs:
     # guards the branch before merge.
     name: with Plugins
     runs-on: ubuntu-latest
+    # Least privilege: this job checks out and runs PR-controlled plugin code
+    # (including from forks), so it must not inherit repo-default token write
+    # scopes. It only needs to read the repo.
+    permissions:
+      contents: read
     steps:
       -
         name: Install libreoffice
