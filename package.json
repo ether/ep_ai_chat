@@ -17,8 +17,10 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "dependencies": {
+    "ep_ai_core": ">=0.0.1"
+  },
   "peerDependencies": {
-    "ep_ai_core": ">=0.0.1",
     "ep_comments_page": "*"
   },
   "peerDependenciesMeta": {
