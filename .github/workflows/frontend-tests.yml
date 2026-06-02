@@ -45,15 +45,20 @@ jobs:
         name: Install Etherpad core dependencies
         working-directory: ./etherpad-lite
         run: bin/installDeps.sh
-      - name: Install peer dep ep_ai_core from registry
-        working-directory: ./etherpad-lite
-        run: pnpm run plugins i ep_ai_core
-      # Intentionally NOT installing ep_comments_page here. The frontend
+      # Deliberately do NOT pre-install ep_ai_core. It is a hard runtime
+      # dependency declared in package.json "dependencies", so installing the
+      # plugin alone must pull it in automatically — and the AI editing specs
+      # below can only pass if it loads. This is the path a real user walks
+      # (`pnpm run plugins i ep_ai_chat`). Unlike backend-tests, this job runs
+      # on same-repo PRs, so it is what actually guards against ep_ai_core
+      # being moved back to peerDependencies (the bug that closed #33).
+      #
+      # Also intentionally NOT installing ep_comments_page here. The frontend
       # editing specs expect AI requests to apply edits directly to the
       # pad; with ep_comments_page present, the plugin's "auto" default
       # routes to suggest mode and the pad text would not change in
       # response to those tests.
-      - name: Install plugin
+      - name: Install plugin (must resolve ep_ai_core on its own)
         working-directory: ./etherpad-lite
         run: |
           pnpm run plugins i --path ../../plugin

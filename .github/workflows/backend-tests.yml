@@ -58,13 +58,15 @@ jobs:
         name: Install Etherpad core dependencies
         working-directory: ./etherpad-lite
         run: bin/installDeps.sh
-      - name: Install peer dep ep_ai_core from registry
-        working-directory: ./etherpad-lite
-        run: pnpm run plugins i ep_ai_core
+      # Deliberately do NOT pre-install ep_ai_core here. It is a hard runtime
+      # dependency declared in package.json "dependencies", so installing the
+      # plugin alone must pull it in automatically. Pre-installing it would mask
+      # a regression if it were ever moved back to peerDependencies (peer deps
+      # are not auto-installed), which is exactly the bug that closed #33.
       - name: Install optional peer dep ep_comments_page from registry
         working-directory: ./etherpad-lite
         run: pnpm run plugins i ep_comments_page
-      - name: Install plugin
+      - name: Install plugin (must resolve ep_ai_core on its own)
         working-directory: ./etherpad-lite
         run: |
           pnpm run plugins i --path  ../../plugin
