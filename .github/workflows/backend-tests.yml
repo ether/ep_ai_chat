@@ -6,11 +6,14 @@ on:
 
 jobs:
   withplugins:
-    # run on pushes to any branch
-    # run on PRs from external forks
-    if: |
-      (github.event_name != 'pull_request')
-      || (github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id)
+    # Always run. The previous guard skipped this job for same-repo pull
+    # requests (it only ran on pushes or fork PRs), but the parent workflow
+    # only triggers `push` on main/master — so same-repo feature-branch PRs
+    # got NO backend run at all, and failures only surfaced post-merge on
+    # main where nothing blocks on them. A genuine padEditor regression sat
+    # red on main for weeks as a result. Backend tests need no secrets, so
+    # running them on every PR (incl. forks) is safe and is what actually
+    # guards the branch before merge.
     name: with Plugins
     runs-on: ubuntu-latest
     steps:
