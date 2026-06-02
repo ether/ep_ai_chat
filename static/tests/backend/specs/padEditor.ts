@@ -362,7 +362,8 @@ describe('ep_ai_chat - padEditor', function () {
 
           const pad = await padManager.getPad(padId);
           const baseLen = pad.text().length; // includes trailing '\n'
-          const result = await padEditor.applyEdit(pad, {appendText: '\nMore'});
+          const appendText = '\nMore';
+          const result = await padEditor.applyEdit(pad, {appendText});
           assert.ok(result.success,
               `append should succeed without authorId; got: ${JSON.stringify(result)}`);
 
@@ -388,13 +389,19 @@ describe('ep_ai_chat - padEditor', function () {
           // createPad API before this PR's invariant existed.
           let cursor = 0;
           // applyEdit inserts at currentText.length - 1, i.e. before the
-          // trailing '\n'. So the new span starts at baseLen - 1.
+          // trailing '\n'. So the new span starts at baseLen - 1 and spans
+          // exactly the inserted characters. The pad's original trailing '\n'
+          // is pushed to the very end of the document and is intentionally
+          // left unattributed — the AI never wrote it, so only [insertStart,
+          // insertEnd) is the AI's work and must carry an author attribute.
           const insertStart = baseLen - 1;
+          const insertEnd = insertStart + appendText.length;
           for (const op of Changeset.deserializeOps(updated.atext.attribs)) {
             const opStart = cursor;
             const opEnd = cursor + op.chars;
             cursor = opEnd;
-            if (opEnd <= insertStart) continue; // entirely in the seed
+            if (opEnd <= insertStart) continue; // entirely in the seed prefix
+            if (opStart >= insertEnd) continue; // seed's trailing '\n', shifted past our insert
             let hasAuthor = false;
             for (const [key] of attribsFromString(op.attribs, pool)) {
               if (key === 'author') hasAuthor = true;
