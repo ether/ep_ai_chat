@@ -28,7 +28,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 25
+      # npm auth is via OIDC trusted publishing (id-token: write above) — npm
+      # exchanges the GitHub Actions OIDC token for a short-lived publish token
+      # automatically, so no stored NPM_TOKEN is needed. Publishes carry a
+      # provenance statement as a result.
       - run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
