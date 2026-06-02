@@ -9,11 +9,11 @@ edit lands inline with its own author colour and an explanation in chat.](demo.g
 
 ## Installation
 
-Requires `ep_ai_core`.
-
 ```bash
-pnpm run plugins i ep_ai_core ep_ai_chat
+pnpm run plugins i ep_ai_chat
 ```
+
+This pulls in `ep_ai_core` automatically — it is a required runtime dependency.
 
 Configure the LLM provider in `settings.json` under the `ep_ai_core` key.
 See the [ep_ai_core README](https://github.com/ether/ep_ai_core#readme) for
