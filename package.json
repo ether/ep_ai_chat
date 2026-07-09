@@ -31,7 +31,7 @@
   "devDependencies": {
     "eslint": "^10.6.0",
     "eslint-config-etherpad": "^4.0.5",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "scripts": {
     "lint": "eslint .",
