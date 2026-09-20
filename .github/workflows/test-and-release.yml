@@ -8,6 +8,10 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    secrets: inherit
+
   backend-tests:
     uses: ./.github/workflows/backend-tests.yml
 
@@ -15,7 +19,7 @@ jobs:
     uses: ./.github/workflows/frontend-tests.yml
 
   release:
-    needs: [backend-tests, frontend-tests]
+    needs: [lint, backend-tests, frontend-tests]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
