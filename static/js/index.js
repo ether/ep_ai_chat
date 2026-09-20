@@ -20,7 +20,7 @@ exports.postAceInit = (hookName, context) => {
   try {
     const chatInput = document.querySelector('#chatinput');
     if (chatInput) chatInput.setAttribute('spellcheck', 'false');
-  } catch (e) { /* never break ace init */ }
+  } catch { /* never break ace init */ }
 };
 
 /**
@@ -40,7 +40,7 @@ exports.chatPrefillFromUser = (hookName, context, cb) => {
     if (ai.authorId && context && context.authorId === ai.authorId) {
       return cb(`${ai.trigger || '@ai'} `);
     }
-  } catch (_e) { /* fall through to default */ }
+  } catch { /* fall through to default */ }
   return cb();
 };
 

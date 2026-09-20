@@ -97,7 +97,9 @@ const applyEdit = async (pad, edit, io = null) => {
       changeset = Changeset.makeSplice(currentText, insertPos, 0, edit.appendText, attribs, pool);
     } else if (edit.findText && edit.replaceText !== undefined) {
       const idx = currentText.indexOf(edit.findText);
-      if (idx === -1) return {success: false, error: `Text not found: "${edit.findText.substring(0, 100)}"`};
+      if (idx === -1) {
+        return {success: false, error: `Text not found: "${edit.findText.substring(0, 100)}"`};
+      }
       // Diff findText -> replaceText so we only re-author the genuinely-
       // changed runs. A single makeSplice would tag every char of
       // replaceText with our author attribute even where the AI didn't

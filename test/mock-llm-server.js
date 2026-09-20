@@ -34,9 +34,9 @@ const getDocumentText = (messages) => {
 const generateResponse = (messages, isAnthropic) => {
   const allMessages = isAnthropic
     ? [
-      ...(messages.system ? [{role: 'system', content: messages.system}] : []),
-      ...messages.messages,
-    ]
+        ...(messages.system ? [{role: 'system', content: messages.system}] : []),
+        ...messages.messages,
+      ]
     : messages.messages || messages;
 
   if (isEditRequest(allMessages)) {
@@ -57,12 +57,12 @@ const generateResponse = (messages, isAnthropic) => {
     const docText = getDocumentText(allMessages);
     const findText = docText || 'original text';
     const replaceText = `${findText.charAt(0).toUpperCase() + findText.slice(1)}. Improved by AI.`;
-    return '```json\n' + JSON.stringify({
+    return `\`\`\`json\n${JSON.stringify({
       action: 'edit',
       findText,
       replaceText,
       explanation: 'Improved the writing by capitalizing and expanding the text.',
-    }, null, 2) + '\n```\n\nI\'ve improved the text by making it more polished and complete.';
+    }, null, 2)}\n\`\`\`\n\nI've improved the text by making it more polished and complete.`;
   }
 
   return 'This pad was written by the test author. ' +

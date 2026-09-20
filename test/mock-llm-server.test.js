@@ -4,11 +4,11 @@ const http = require('http');
 const assert = require('assert');
 const {spawn} = require('child_process');
 
-describe('mock-llm-server', function () {
+describe('mock-llm-server', () => {
   let serverProcess;
   const PORT = 18099; // Use a different port for testing the mock itself
 
-  before(function (done) {
+  before((done) => {
     serverProcess = spawn('node', ['test/mock-llm-server.js'], {
       cwd: `${__dirname}/..`,
       env: {...process.env, MOCK_LLM_PORT: PORT},
@@ -17,11 +17,11 @@ describe('mock-llm-server', function () {
     setTimeout(done, 1500);
   });
 
-  after(function () {
+  after(() => {
     if (serverProcess) serverProcess.kill();
   });
 
-  it('responds to Anthropic format requests', function (done) {
+  it('responds to Anthropic format requests', (done) => {
     const body = JSON.stringify({
       system: 'You are helpful',
       messages: [{role: 'user', content: 'who wrote this?'}],
@@ -51,7 +51,7 @@ describe('mock-llm-server', function () {
     req.end();
   });
 
-  it('responds to OpenAI format requests', function (done) {
+  it('responds to OpenAI format requests', (done) => {
     const body = JSON.stringify({
       model: 'test',
       messages: [{role: 'user', content: 'hello'}],
@@ -79,7 +79,7 @@ describe('mock-llm-server', function () {
     req.end();
   });
 
-  it('returns edit JSON for edit requests', function (done) {
+  it('returns edit JSON for edit requests', (done) => {
     const body = JSON.stringify({
       system: 'Current pad content:\n\nhello world',
       messages: [{role: 'user', content: 'improve this'}],
