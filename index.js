@@ -55,7 +55,7 @@ const isRateLimited = (padId) => {
   const now = Date.now();
   const lastRequest = rateLimits[padId] || 0;
   const window = typeof chatSettings.rateLimitMs === 'number'
-      ? chatSettings.rateLimitMs : DEFAULT_RATE_LIMIT_MS;
+    ? chatSettings.rateLimitMs : DEFAULT_RATE_LIMIT_MS;
   if (now - lastRequest < window) return true;
   rateLimits[padId] = now;
   return false;
@@ -90,7 +90,9 @@ const getAiAuthorId = async () => {
   if (aiAuthorId) return aiAuthorId;
   const result = await authorManager.createAuthor(chatSettings.authorName);
   aiAuthorId = result.authorID;
-  if (chatSettings.authorColor) await authorManager.setAuthorColorId(aiAuthorId, chatSettings.authorColor);
+  if (chatSettings.authorColor) {
+    await authorManager.setAuthorColorId(aiAuthorId, chatSettings.authorColor);
+  }
   return aiAuthorId;
 };
 
@@ -220,7 +222,8 @@ exports.handleMessage = async (hookName, context) => {
 
   // Audit log
   const requestAuthor = context.sessionInfo?.authorId || 'unknown';
-  logger.info(`AI request: pad=${padId} author=${requestAuthor} query="${query.substring(0, 100)}"`);
+  logger.info(
+      `AI request: pad=${padId} author=${requestAuthor} query="${query.substring(0, 100)}"`);
 
   const {mode: effectiveMode, fellBackFromSuggest} =
       resolveSuggestionMode(padId, override, aiSettings, commentsModulesCache.depAvailable);
@@ -235,7 +238,6 @@ exports.handleMessage = async (hookName, context) => {
   setImmediate(async () => {
     try {
       const pad = await padManager.getPad(padId);
-      const currentText = pad.text();
       const conversation = getConversation(padId);
 
       const llmConfig = {
@@ -264,15 +266,20 @@ exports.handleMessage = async (hookName, context) => {
       const editInstructions = canEdit
         ? `
 
-When the user asks you to change, improve, edit, rewrite, fix, or modify the document in any way, you MUST respond with a JSON block containing your edit. Use this exact format:
+When the user asks you to change, improve, edit, rewrite, fix, or modify the \
+document in any way, you MUST respond with a JSON block containing your edit. \
+Use this exact format:
 
 \`\`\`json
-{"action": "edit", "findText": "exact text from the document to replace", "replaceText": "the improved replacement text", "explanation": "brief explanation of what you changed"}
+{"action": "edit", "findText": "exact text from the document to replace", \
+"replaceText": "the improved replacement text", \
+"explanation": "brief explanation of what you changed"}
 \`\`\`
 
 The findText MUST be an exact substring from the current document. Be precise.
 
-If the user is NOT asking for an edit (just asking a question, discussing content, etc.), respond normally with plain text — no JSON block.`
+If the user is NOT asking for an edit (just asking a question, discussing \
+content, etc.), respond normally with plain text — no JSON block.`
         : '\n\nYou have READ-ONLY access. You cannot edit the pad. Just answer questions.';
 
       decideMessages[0].content += editInstructions;
@@ -286,7 +293,8 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
       if (jsonMatch && canEdit) {
         try {
           const editData = JSON.parse(jsonMatch[1]);
-          if (editData.action === 'edit' && editData.findText && editData.replaceText !== undefined) {
+          if (editData.action === 'edit' && editData.findText &&
+              editData.replaceText !== undefined) {
             editData.authorId = await getAiAuthorId();
             editData.requesterAuthorId = requestAuthor;
 
@@ -324,7 +332,10 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
               if (editResult.success) {
                 applied = true;
                 const explanation = editData.explanation || 'Edit applied.';
-                logger.info(`AI edit applied: pad=${padId} find="${editData.findText.substring(0, 50)}" replace="${editData.replaceText.substring(0, 50)}"`);
+                logger.info(
+                    `AI edit applied: pad=${padId} ` +
+                    `find="${editData.findText.substring(0, 50)}" ` +
+                    `replace="${editData.replaceText.substring(0, 50)}"`);
                 await sendChatReply(padId, `\u2705 ${explanation}`);
               } else {
                 logger.warn(`Edit failed: ${editResult.error}`);
@@ -351,9 +362,16 @@ If the user is NOT asking for an edit (just asking a question, discussing conten
     } catch (err) {
       logger.error(`AI chat error: ${err.message}`);
       let msg = t('ep_ai_chat.error_generic');
-      if (err.message.includes('429')) msg = t('ep_ai_chat.error_rate_limit');
-      else if (err.message.includes('401') || err.message.includes('403')) msg = t('ep_ai_chat.error_auth');
-      try { await sendChatReply(padId, msg); } catch { logger.error('Failed to send error to chat'); }
+      if (err.message.includes('429')) {
+        msg = t('ep_ai_chat.error_rate_limit');
+      } else if (err.message.includes('401') || err.message.includes('403')) {
+        msg = t('ep_ai_chat.error_auth');
+      }
+      try {
+        await sendChatReply(padId, msg);
+      } catch {
+        logger.error('Failed to send error to chat');
+      }
     }
   });
 };
