@@ -63,7 +63,7 @@ describe('ep_ai_chat - end-to-end @ai apply: override', function () {
     settings.ep_ai_core = {
       apiBaseUrl: `http://127.0.0.1:${mockPort}`,
       apiKey: 'test-key',
-      model: 'test-model',
+      model: 'test-model-1',
       provider: 'openai',
       access: {defaultMode: 'full', pads: {}},
       chat: {

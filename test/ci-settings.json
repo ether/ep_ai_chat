@@ -2,7 +2,7 @@
   "ep_ai_core": {
     "apiBaseUrl": "http://localhost:18089",
     "apiKey": "mock-key",
-    "model": "mock-model",
+    "model": "mock-model-1",
     "provider": "anthropic",
     "access": {
       "defaultMode": "full",

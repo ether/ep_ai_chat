@@ -119,7 +119,7 @@ describe('ep_ai_chat - selection-aware editing', function () {
       settings.ep_ai_core = {
         apiBaseUrl: `http://127.0.0.1:${mockPort}`,
         apiKey: 'test',
-        model: 'test',
+        model: 'test-model-1',
         provider: 'anthropic',
         access: {defaultMode: 'full', pads: {}},
         chat: {trigger: '@ai'},

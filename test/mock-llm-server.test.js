@@ -53,7 +53,7 @@ describe('mock-llm-server', () => {
 
   it('responds to OpenAI format requests', (done) => {
     const body = JSON.stringify({
-      model: 'test',
+      model: 'test-model-1',
       messages: [{role: 'user', content: 'hello'}],
     });
     const req = http.request({
