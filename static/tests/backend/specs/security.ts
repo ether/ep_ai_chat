@@ -72,7 +72,7 @@ describe('ep_ai_chat - security', function () {
       settings.ep_ai_core = {
         apiBaseUrl: 'http://localhost:1', // Won't actually connect
         apiKey: 'test',
-        model: 'test',
+        model: 'test-model-1',
         provider: 'openai',
         access: {defaultMode: 'full', pads: {}},
         chat: {trigger: '@ai'},
