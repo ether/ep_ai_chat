@@ -44,7 +44,7 @@ Chat-specific settings go under `ep_ai_core.chat` in `settings.json`. The
   "ep_ai_core": {
     "apiBaseUrl": "https://api.anthropic.com/v1",
     "apiKey": "sk-ant-...",
-    "model": "claude-sonnet-4-20250514",
+    "model": "claude-sonnet-5-5",
     "chat": {
       "trigger": "@ai",
       "authorName": "AI Assistant",
@@ -72,7 +72,7 @@ provider is auto-detected from the URL; set `"provider": "anthropic"` or
   "ep_ai_core": {
     "apiBaseUrl": "https://api.anthropic.com/v1",
     "apiKey": "sk-ant-...",
-    "model": "claude-sonnet-4-20250514",
+    "model": "claude-sonnet-5-5",
     "provider": "anthropic"
   }
 }
@@ -85,7 +85,7 @@ provider is auto-detected from the URL; set `"provider": "anthropic"` or
   "ep_ai_core": {
     "apiBaseUrl": "https://api.openai.com/v1",
     "apiKey": "sk-...",
-    "model": "gpt-4o",
+    "model": "gpt-6.1-sol",
     "provider": "openai"
   }
 }
@@ -101,7 +101,7 @@ straight out of the box.
   "ep_ai_core": {
     "apiBaseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
     "apiKey": "AIza...",
-    "model": "gemini-2.5-flash",
+    "model": "gemini-3.8-flash",
     "provider": "openai"
   }
 }
@@ -130,7 +130,7 @@ GitHub personal access token with the `models:read` scope.
   "ep_ai_core": {
     "apiBaseUrl": "https://api.x.ai/v1",
     "apiKey": "xai-...",
-    "model": "grok-2-latest",
+    "model": "grok-4.7",
     "provider": "openai"
   }
 }
