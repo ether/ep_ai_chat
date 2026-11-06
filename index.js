@@ -118,6 +118,38 @@ const getConversation = (padId) => {
   return conversations[padId];
 };
 
+// A session opened through a pad's read-only ID must never reach the AI.
+// Core's read-only gate for COLLABROOM messages runs after the handleMessage
+// hook, so this plugin has to enforce it itself.
+//
+// Core uses two shapes here (PadMessageHandler.handleMessage):
+//   - the hook's `context.sessionInfo` is `{authorId, padId, readOnly}`
+//     (camelCase), built from the session at message time;
+//   - the live `PadMessageHandler.sessioninfos[socket.id]` object keeps the
+//     flag as lowercase `readonly`.
+// Fail closed: anything other than an explicit `sessionInfo.readOnly: false`
+// is treated as read-only.
+const requesterCanWrite = (context, padId) => {
+  if (context.sessionInfo?.readOnly !== false) return false;
+  // The AI work runs asynchronously, so callers check again right before each
+  // write; this also looks at the live session when the socket still has one.
+  const socketId = context.socket?.id;
+  const live = socketId ? padMessageHandler.sessioninfos?.[socketId] : null;
+  if (live && (live.readonly || (live.padId && live.padId !== padId))) return false;
+  return true;
+};
+exports.requesterCanWrite = requesterCanWrite;
+
+class ReadOnlyRequesterError extends Error {}
+
+// Throws if the requester can no longer write. Call it synchronously right
+// before each pad mutation, with no await in between.
+const assertRequesterCanWrite = (context, padId) => {
+  if (!requesterCanWrite(context, padId)) {
+    throw new ReadOnlyRequesterError(`requesting session is read-only: pad=${padId}`);
+  }
+};
+
 const addToConversation = (padId, role, content) => {
   const conv = getConversation(padId);
   conv.push({role, content});
@@ -206,6 +238,16 @@ exports.handleMessage = async (hookName, context) => {
 
   const padId = context.sessionInfo?.padId;
   if (!padId) return;
+
+  // Read-only sessions can't edit the pad or post chat, so they can't use the
+  // AI either. Checked before the rate limit so read-only clients can't use up
+  // the pad's rate-limit window.
+  if (!requesterCanWrite(context, padId)) {
+    logger.warn(
+        `Ignoring @ai request from read-only session: pad=${padId} ` +
+        `author=${context.sessionInfo?.authorId || 'unknown'}`);
+    return;
+  }
 
   // Rate limit: prevent API cost abuse
   if (isRateLimited(padId)) {
@@ -303,6 +345,7 @@ content, etc.), respond normally with plain text — no JSON block.`
 
             let editResult;
             if (useSuggest) {
+              assertRequesterCanWrite(context, padId);
               editResult = await suggestEdit(pad, editData, {
                 requesterAuthorId: requestAuthor,
                 aiAuthorId: editData.authorId,
@@ -319,6 +362,7 @@ content, etc.), respond normally with plain text — no JSON block.`
                     '\ud83d\udca1 Suggestion ready \u2014 review in the comments sidebar.');
               } else {
                 logger.warn(`Suggest failed, falling back to apply: ${editResult.error}`);
+                assertRequesterCanWrite(context, padId);
                 editResult = await applyEdit(pad, editData, socketioRef);
                 if (editResult.success) {
                   applied = true;
@@ -328,6 +372,7 @@ content, etc.), respond normally with plain text — no JSON block.`
                 }
               }
             } else {
+              assertRequesterCanWrite(context, padId);
               editResult = await applyEdit(pad, editData, socketioRef);
               if (editResult.success) {
                 applied = true;
@@ -344,6 +389,8 @@ content, etc.), respond normally with plain text — no JSON block.`
             }
           }
         } catch (e) {
+          // A requester that became read-only gets no edit and no reply.
+          if (e instanceof ReadOnlyRequesterError) throw e;
           logger.warn(`Failed to parse edit JSON: ${e.message}`);
           // Fall through to send the raw response
         }
@@ -360,6 +407,10 @@ content, etc.), respond normally with plain text — no JSON block.`
       addToConversation(padId, 'user', query);
       addToConversation(padId, 'assistant', response.content);
     } catch (err) {
+      if (err instanceof ReadOnlyRequesterError) {
+        logger.warn(`Dropping AI edit: ${err.message}`);
+        return;
+      }
       logger.error(`AI chat error: ${err.message}`);
       let msg = t('ep_ai_chat.error_generic');
       if (err.message.includes('429')) {
