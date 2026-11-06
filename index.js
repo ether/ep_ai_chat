@@ -118,6 +118,21 @@ const getConversation = (padId) => {
   return conversations[padId];
 };
 
+// A session opened through a pad's read-only ID must never reach the AI.
+// Core's read-only gate for COLLABROOM messages runs after the handleMessage
+// hook, so this plugin has to enforce it itself. Fail closed: anything other
+// than an explicit `readOnly: false` is treated as read-only.
+const requesterCanWrite = (context, padId) => {
+  if (context.sessionInfo?.readOnly !== false) return false;
+  // The AI work runs asynchronously, so also check the live session (when
+  // there is one) right before acting on the pad.
+  const socketId = context.socket?.id;
+  const live = socketId ? padMessageHandler.sessioninfos?.[socketId] : null;
+  if (live && (live.readonly || (live.padId && live.padId !== padId))) return false;
+  return true;
+};
+exports.requesterCanWrite = requesterCanWrite;
+
 const addToConversation = (padId, role, content) => {
   const conv = getConversation(padId);
   conv.push({role, content});
@@ -207,6 +222,16 @@ exports.handleMessage = async (hookName, context) => {
   const padId = context.sessionInfo?.padId;
   if (!padId) return;
 
+  // Read-only sessions can't edit the pad or post chat, so they can't use the
+  // AI either. Checked before the rate limit so read-only clients can't use up
+  // the pad's rate-limit window.
+  if (!requesterCanWrite(context, padId)) {
+    logger.warn(
+        `Ignoring @ai request from read-only session: pad=${padId} ` +
+        `author=${context.sessionInfo?.authorId || 'unknown'}`);
+    return;
+  }
+
   // Rate limit: prevent API cost abuse
   if (isRateLimited(padId)) {
     logger.info(`Rate limited @ai request on pad ${padId}`);
@@ -295,6 +320,10 @@ content, etc.), respond normally with plain text — no JSON block.`
           const editData = JSON.parse(jsonMatch[1]);
           if (editData.action === 'edit' && editData.findText &&
               editData.replaceText !== undefined) {
+            if (!requesterCanWrite(context, padId)) {
+              logger.warn(`Dropping AI edit: requesting session is now read-only: pad=${padId}`);
+              return;
+            }
             editData.authorId = await getAiAuthorId();
             editData.requesterAuthorId = requestAuthor;
 
