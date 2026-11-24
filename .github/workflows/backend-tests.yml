@@ -14,8 +14,23 @@ jobs:
     # red on main for weeks as a result. Backend tests need no secrets, so
     # running them on every PR (incl. forks) is safe and is what actually
     # guards the branch before merge.
-    name: with Plugins
+    name: with Plugins (Node ${{ matrix.node }} / core ${{ matrix.core_ref || 'develop' }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # Plugin floor is engines.node >=22 but current Etherpad core
+      # requires >=24 (engineStrict). Each cell pairs a Node version
+      # with a core ref that actually allows it: Node 22 against the
+      # last tag whose core floor was 22 (v2.7.3); Node 24 / 26 against
+      # current develop.
+      matrix:
+        include:
+          - node: '22'
+            core_ref: 'v2.7.3'
+          - node: '24'
+            core_ref: ''
+          - node: '26'
+            core_ref: ''
     # Least privilege: this job checks out and runs PR-controlled plugin code
     # (including from forks), so it must not inherit repo-default token write
     # scopes. It only needs to read the repo.
@@ -33,11 +48,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: ether/etherpad-lite
+          ref: ${{ matrix.core_ref }}
           path: etherpad-lite
       - uses: actions/setup-node@v7
         name: Install Node.js
         with:
-          node-version: 25
+          node-version: ${{ matrix.node }}
       - uses: pnpm/action-setup@v6.1.1
         name: Install pnpm
         with:
