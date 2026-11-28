@@ -9,6 +9,13 @@ updates:
     schedule:
       interval: "daily"
     versioning-strategy: "increase"
+    # semantic-release only publishes on fix/feat/perf commits, so production
+    # dependency bumps use fix(deps) and get released. Dev dependency bumps
+    # stay chore(deps-dev) and do not trigger a release.
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
     ignore:
       # typescript-eslint has no release that supports TypeScript 7 yet.
       - dependency-name: "typescript"
